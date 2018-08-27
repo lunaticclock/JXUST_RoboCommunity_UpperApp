@@ -1,0 +1,9 @@
+G:\Workspace\C++\WindowsFormsApp1\WindowsFormsApp1\obj\Release\WindowsFormsApp1.Form1.resources
+G:\Workspace\C++\WindowsFormsApp1\WindowsFormsApp1\obj\Release\WindowsFormsApp1.Properties.Resources.resources
+G:\Workspace\C++\WindowsFormsApp1\WindowsFormsApp1\obj\Release\WindowsFormsApp1.csproj.GenerateResource.cache
+G:\Workspace\C++\WindowsFormsApp1\WindowsFormsApp1\obj\Release\WindowsFormsApp1.csproj.CoreCompileInputs.cache
+G:\Workspace\C++\WindowsFormsApp1\WindowsFormsApp1\bin\Release\小车上位机V4.5.exe.config
+G:\Workspace\C++\WindowsFormsApp1\WindowsFormsApp1\bin\Release\小车上位机V4.5.exe
+G:\Workspace\C++\WindowsFormsApp1\WindowsFormsApp1\bin\Release\小车上位机V4.5.pdb
+G:\Workspace\C++\WindowsFormsApp1\WindowsFormsApp1\obj\Release\小车上位机V4.5.exe
+G:\Workspace\C++\WindowsFormsApp1\WindowsFormsApp1\obj\Release\小车上位机V4.5.pdb

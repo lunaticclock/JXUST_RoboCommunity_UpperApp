@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Diagnostics;
 using System.Drawing;
+using System.IO;
 using System.IO.Ports;
 using System.Linq;
 using System.Net;
@@ -11,6 +13,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+//using NetFwTypeLib;
+//using System.Runtime.InteropServices;
 
 namespace WindowsFormsApp1
 {
@@ -60,6 +64,117 @@ namespace WindowsFormsApp1
             //comboBox1.Items.AddRange(Port);
             textBox3.Text = "1000";
             GetLocalIP();
+            if (!File.Exists("Buffer.log"))
+            {
+                FileStream fs = new FileStream("Buffer.log", FileMode.OpenOrCreate);
+                fs.Close();
+            }
+            filerd();
+            //NetFwAddApps(proname, Application.ExecutablePath);
+        }
+        /*
+        public static void NetFwAddApps(string name, string executablePath)
+        {
+            INetFwMgr netFwMgr = (INetFwMgr)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwMgr"));
+            INetFwAuthorizedApplication app = (INetFwAuthorizedApplication)Activator.CreateInstance(
+                Type.GetTypeFromProgID("HNetCfg.FwAuthorizedApplication"));
+
+            //在例外列表里，程序显示的名称  
+            app.Name = name;
+
+            //程序的路径及文件名  
+            app.ProcessImageFileName = executablePath;
+
+            //是否启用该规则
+            app.Enabled = true;
+
+            //创建firewall管理类的实例  
+            //加入到防火墙的管理策略  
+            
+            bool exist = false;
+            //加入到防火墙的管理策略  
+            foreach (INetFwAuthorizedApplication mApp in netFwMgr.LocalPolicy.CurrentProfile.AuthorizedApplications)
+            {
+                if (app == mApp)
+                {
+                    exist = true;
+                    break;
+                }
+            }
+            if (!exist)
+                netFwMgr.LocalPolicy.CurrentProfile.AuthorizedApplications.Add(app);
+        }*/
+
+        private void filerd()
+        {
+            string data = string.Empty;
+            string addr = string.Empty;
+            string hex = string.Empty;
+            StreamReader sr = new StreamReader("Buffer.log", true);
+            data = sr.ReadLine();
+            while(data != null)
+            {
+                int num = data.IndexOf(';');
+                addr = data.Substring(0, num);
+                data = data.Remove(0, num + 1);
+                num = data.IndexOf(';');
+                hex = data.Remove(0, num + 1);
+                data = data.Substring(0, num);
+                switch (addr)
+                {
+                    case "U1": textBox5.Text = data;
+                        if (hex == "H")
+                            checkBox4.CheckState = System.Windows.Forms.CheckState.Checked;
+                        else if (hex == "A")
+                            checkBox4.CheckState = System.Windows.Forms.CheckState.Unchecked;
+                        break;
+                    case "U2": textBox9.Text = data;
+                        if (hex == "H")
+                            checkBox5.CheckState = System.Windows.Forms.CheckState.Checked;
+                        else if (hex == "A")
+                            checkBox5.CheckState = System.Windows.Forms.CheckState.Unchecked;
+                        break;
+                    case "U3": textBox10.Text = data;
+                        if (hex == "H")
+                            checkBox6.CheckState = System.Windows.Forms.CheckState.Checked;
+                        else if (hex == "A")
+                            checkBox6.CheckState = System.Windows.Forms.CheckState.Unchecked;
+                        break;
+                    case "U4": textBox11.Text = data;
+                        if (hex == "H")
+                            checkBox7.CheckState = System.Windows.Forms.CheckState.Checked;
+                        else if (hex == "A")
+                            checkBox7.CheckState = System.Windows.Forms.CheckState.Unchecked;
+                        break;
+                    case "U5": textBox12.Text = data;
+                        if (hex == "H")
+                            checkBox8.CheckState = System.Windows.Forms.CheckState.Checked;
+                        else if (hex == "A")
+                            checkBox8.CheckState = System.Windows.Forms.CheckState.Unchecked;
+                        break;
+                    case "U6": textBox13.Text = data;
+                        if (hex == "H")
+                            checkBox9.CheckState = System.Windows.Forms.CheckState.Checked;
+                        else if (hex == "A")
+                            checkBox9.CheckState = System.Windows.Forms.CheckState.Unchecked;
+                        break;
+                    case "U7": textBox14.Text = data;
+                        if (hex == "H")
+                            checkBox10.CheckState = System.Windows.Forms.CheckState.Checked;
+                        else if (hex == "A")
+                            checkBox10.CheckState = System.Windows.Forms.CheckState.Unchecked;
+                        break;
+                    case "U8": textBox15.Text = data;
+                        if (hex == "H")
+                            checkBox11.CheckState = System.Windows.Forms.CheckState.Checked;
+                        else if (hex == "A")
+                            checkBox11.CheckState = System.Windows.Forms.CheckState.Unchecked;
+                        break;
+                    default: break;
+                }
+                data = sr.ReadLine();
+            }
+            sr.Close();
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -99,93 +214,105 @@ namespace WindowsFormsApp1
             {
                 if (comboBox3.Text == "TCP")
                 {
-                    IPAddress ip = IPAddress.Parse(comboBox4.Text);
-
-                    // IPAddress ip = IPAddress.Any;
-
-                    //端口号
-
-                    IPEndPoint point = new IPEndPoint(ip, int.Parse(textBox6.Text));
-
-                    //创建监听用的Socket
-
-                    /*
-
-                        * AddressFamily.InterNetWork：使用 IP4地址。
-
-        SocketType.Stream：支持可靠、双向、基于连接的字节流，而不重复数据。此类型的 Socket 与单个对方主机进行通信，并且在通信开始之前需要远程主机连接。Stream 使用传输控制协议 (Tcp) ProtocolType 和 InterNetworkAddressFamily。
-
-        ProtocolType.Tcp：使用传输控制协议。
-
-                        */
-
-                    //使用IPv4地址，流式socket方式，tcp协议传递数据
-
-                    socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-
-                    //创建好socket后，必须告诉socket绑定的IP地址和端口号。
-
-                    //让socket监听point
-                    try
+                    if (comboBox4.Text != "")
                     {
+                        IPAddress ip = IPAddress.Parse(comboBox4.Text);
 
-                        //socket监听哪个端口
+                        // IPAddress ip = IPAddress.Any;
 
-                        socket.Bind(point);
+                        //端口号
 
-                        //同一个时间点过来10个客户端，排队
+                        IPEndPoint point = new IPEndPoint(ip, int.Parse(textBox6.Text));
 
-                        socket.Listen(10);
+                        //创建监听用的Socket
 
-                        label1.Text = "开始监听";
-                        button9.Text = "停止监听";
+                        /*
 
-                        thread = new Thread(new ParameterizedThreadStart(AcceptInfo));
+                            * AddressFamily.InterNetWork：使用 IP4地址。
 
-                        thread.IsBackground = true;
+            SocketType.Stream：支持可靠、双向、基于连接的字节流，而不重复数据。此类型的 Socket 与单个对方主机进行通信，并且在通信开始之前需要远程主机连接。Stream 使用传输控制协议 (Tcp) ProtocolType 和 InterNetworkAddressFamily。
 
-                        thread.Start(socket);
-                        comboBox3.Enabled = false;
-                        comboBox4.Enabled = false;
+            ProtocolType.Tcp：使用传输控制协议。
+
+                            */
+
+                        //使用IPv4地址，流式socket方式，tcp协议传递数据
+
+                        socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+
+                        //创建好socket后，必须告诉socket绑定的IP地址和端口号。
+
+                        //让socket监听point
+                        try
+                        {
+
+                            //socket监听哪个端口
+
+                            socket.Bind(point);
+
+                            //同一个时间点过来10个客户端，排队
+
+                            socket.Listen(10);
+
+                            label1.Text = "开始监听";
+                            button9.Text = "停止监听";
+
+                            thread = new Thread(new ParameterizedThreadStart(AcceptInfo));
+
+                            thread.IsBackground = true;
+
+                            thread.Start(socket);
+                            comboBox3.Enabled = false;
+                            comboBox4.Enabled = false;
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show(this, ex.Message, "error");
+                        }
                     }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show(this, ex.Message, "error");
-                    }
+                    else
+                        label1.Text = "请选择IP";
                 }
                 else if (comboBox3.Text == "UDP")
                 {
-                    IPAddress LocalIP = IPAddress.Parse(comboBox4.Text);//本地IP
-                    int LocalPort = Convert.ToInt32(textBox6.Text);//本地Port
-                    IPEndPoint m_LocalIPEndPoint = new IPEndPoint(LocalIP, LocalPort);//本地IP和Port
+                    if (comboBox4.Text != "")
+                    {
+                        IPAddress LocalIP = IPAddress.Parse(comboBox4.Text);//本地IP
+                        int LocalPort = Convert.ToInt32(textBox6.Text);//本地Port
+                        IPEndPoint m_LocalIPEndPoint = new IPEndPoint(LocalIP, LocalPort);//本地IP和Port
 
 
 
-                    //Bind
-                    m_UdpClientSend = new UdpClient(LocalPort);//Bind Send UDP = Local some IP&Port
-                    m_UdpClientReceive = new UdpClient(m_LocalIPEndPoint);//Bind Receive UDP = Local IP&Port
+                        //Bind
+                        m_UdpClientSend = new UdpClient(LocalPort);//Bind Send UDP = Local some IP&Port
+                        m_UdpClientReceive = new UdpClient(m_LocalIPEndPoint);//Bind Receive UDP = Local IP&Port
 
-                    /*
-                    发送的UdpClient对象是m_UdpClientSend，绑定的地址是 0.0.0.0:8010
-                    接收的UdpClient对象是m_UdpClientReceive，绑定的地址是 10.13.68.220:8010
-                    */
+                        /*
+                        发送的UdpClient对象是m_UdpClientSend，绑定的地址是 0.0.0.0:8010
+                        接收的UdpClient对象是m_UdpClientReceive，绑定的地址是 10.13.68.220:8010
+                        */
 
 
-                    //============================
-                    //Start UDP Receive Thread
-                    //============================
-                    m_ReceThread = new Thread(new ThreadStart(ReceProcess));//线程处理程序为 ReceProcess
-                    m_ReceThread.IsBackground = true;//后台线程，前台线程GG，它也GG
-                    m_ReceThread.Start();
+                        //============================
+                        //Start UDP Receive Thread
+                        //============================
+                        m_ReceThread = new Thread(new ThreadStart(ReceProcess));//线程处理程序为 ReceProcess
+                        m_ReceThread.IsBackground = true;//后台线程，前台线程GG，它也GG
+                        m_ReceThread.Start();
 
-                    //============================
-                    //界面处理
-                    //============================
-                    label1.Text = "开始监听";
-                    button9.Text = "停止监听";
-                    comboBox3.Enabled = false;
-                    comboBox4.Enabled = false;
+                        //============================
+                        //界面处理
+                        //============================
+                        label1.Text = "开始监听";
+                        button9.Text = "停止监听";
+                        comboBox3.Enabled = false;
+                        comboBox4.Enabled = false;
+                    }
+                    else
+                        label1.Text = "请选择IP";
                 }
+                else
+                    label1.Text = "请选择模式";
             }
             else if (button9.Text == "停止监听")
             {
@@ -390,17 +517,6 @@ namespace WindowsFormsApp1
                         else if (radioButton1.Checked)
                         {
                             Str2Int(str);
-                            /*
-                            string result = string.Empty;
-                            for (int i = 0; i < str.Length; i++)//逐字节变为16进制字符，以%隔开
-                            {
-                                string add = Convert.ToString(str[i], 16).ToUpper();
-                                if (add.Length == 1)
-                                    add = "0" + add;
-                                result += " " + add;
-                            }
-                            result += "\r\n";
-                            textBox1.AppendText(client.RemoteEndPoint.ToString() + ":\r\n" + result + "\r\n");*/
                         }
 
                         if (checkBox2.Checked)
@@ -439,7 +555,7 @@ namespace WindowsFormsApp1
 
             if (IPAddress.TryParse(textBox7.Text, out RemoteIP) == false)//远端 IP
             {
-                MessageBox.Show("Remote IP is Wrong!", "Wrong");
+                label1.Text = "远端IP错误!";
                 return;
             }
             RemotePort = Convert.ToInt32(textBox8.Text);//远端 Port
@@ -469,58 +585,9 @@ namespace WindowsFormsApp1
 
         private void button1_Click(object sender, EventArgs e)
         {
-            if (radioButton4.Checked)
-            {
-                if (serialPort1.IsOpen)
-                {
-                    Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
-                    //    serialPort1.Write(Buffer);
-                    byte[] bytes = gb.GetBytes(Buffer);
-                    serialPort1.Write(bytes, 0, bytes.Length);
-                    label22.Text = (Convert.ToUInt32(label22.Text) + Buffer.Length).ToString();
-                    if (checkBox3.Checked)
-                        textBox1.AppendText(Buffer);
-                    label1.Text = "发送成功！";
-                }
-                else if (!serialPort1.IsOpen)
-                    label1.Text = "串口未打开！";
-            }
-            else if(radioButton3.Checked)
-            {
-                if (button9.Text == "停止监听")
-                {
-                    if (comboBox3.Text == "TCP")
-                    {
-                        try
-                        {
-                            if (th.IsAlive)
-                            {
-                                string ip = peerip;
-
-                                byte[] buffer = Encoding.UTF8.GetBytes(Buffer);
-
-                                dic[ip].Send(buffer);
-                                label22.Text = (Convert.ToUInt32(label22.Text) + Buffer.Length).ToString();
-                                if (checkBox3.Checked)
-                                {
-                                    textBox1.AppendText(Buffer);
-                                }
-                                label1.Text = "发送成功！";
-                            }
-                            else if (!th.IsAlive)
-                                label1.Text = "未连接到终端！";
-                        }
-                        catch (Exception ex)
-                        {
-                            MessageBox.Show(this, ex.Message, "error");
-                        }
-                    }
-                    else if (comboBox3.Text == "UDP")
-                    {
-                        UDP_Send(Buffer);
-                    }
-                }
-            }
+            string Buf = textBox2.Text; 
+            Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
+            StrSend(Buf, gb);
         }
 
         int Cnt = 0,Counter;
@@ -532,11 +599,7 @@ namespace WindowsFormsApp1
                 if(Cnt >= Counter)
                 {
                     Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
-                    byte[] bytes = gb.GetBytes(Buffer);
-                    serialPort1.Write(bytes, 0, bytes.Length);
-                    label22.Text = (Convert.ToUInt32(label22.Text) + Buffer.Length).ToString();
-                    if (checkBox3.Checked)
-                        textBox1.AppendText(Buffer);
+                    StrSend(label1.Text, gb);
                     Cnt = 0;
                 }
         }
@@ -545,10 +608,10 @@ namespace WindowsFormsApp1
         {
             if (button2.Text == "开始")
             {
-                if (serialPort1.IsOpen)
+                if (button3.Text != "打开串口" || button9.Text != "开始监听")
                 {
                     Counter = (Convert.ToInt32(textBox3.Text, 10) / 100);
-                    if(Counter<1)
+                    if (Counter < 1)
                     {
                         label1.Text = "时间间隔过小";
                         textBox3.Text = "1000";
@@ -558,7 +621,7 @@ namespace WindowsFormsApp1
                     button2.Text = "停止";
                 }
                 else
-                    label1.Text = "串口未打开!";
+                    label1.Text = "端口未打开!";
             }
             else
             {
@@ -683,51 +746,8 @@ namespace WindowsFormsApp1
             trackBar2.Value = 50;
             label7.Text = Convert.ToString(trackBar2.Value);
             string Buf = "RL:" + label7.Text + ":OVER\r\n";
-            if (radioButton4.Checked)
-            {
-                if (serialPort1.IsOpen)
-                {
-                    Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
-                    byte[] bytes = gb.GetBytes(Buf);
-                    serialPort1.Write(bytes, 0, bytes.Length);
-                    label22.Text = (Convert.ToUInt32(label22.Text) + Buf.Length).ToString();
-                    if (checkBox3.Checked)
-                    {
-                        textBox1.AppendText(Buf);
-                    }
-                }
-            }
-            else if (radioButton3.Checked)
-            {
-                if (button9.Text == "停止监听")
-                {
-                    if (comboBox3.Text == "TCP")
-                    {
-                        try
-                        {
-                            if (th.IsAlive)
-                            {
-                                string ip = peerip;
-
-                                byte[] buffer = Encoding.UTF8.GetBytes(Buf);
-
-                                dic[ip].Send(buffer);
-                                label22.Text = (Convert.ToUInt32(label22.Text) + Buf.Length).ToString();
-                                if (checkBox3.Checked)
-                                {
-                                    textBox1.AppendText(Buf);
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            MessageBox.Show(this, ex.Message, "error");
-                        }
-                    }
-                    else if (comboBox3.Text == "UDP")
-                        UDP_Send(Buf);
-                }
-            }
+            Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
+            StrSend(Buf, gb);
         }
 
         private void button5_Click(object sender, EventArgs e)
@@ -735,151 +755,22 @@ namespace WindowsFormsApp1
             trackBar1.Value = 50;
             label5.Text = Convert.ToString(trackBar1.Value);
             string Buf = "FB:" + label5.Text + ":OVER\r\n";
-            if (radioButton4.Checked)
-            {
-                if (serialPort1.IsOpen)
-                {
-                    Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
-                    byte[] bytes = gb.GetBytes(Buf);
-                    serialPort1.Write(bytes, 0, bytes.Length);
-                    label22.Text = (Convert.ToUInt32(label22.Text) + Buf.Length).ToString();
-                    if (checkBox3.Checked)
-                    {
-                        textBox1.AppendText(Buf);
-                    }
-                }
-            }
-            else if (radioButton3.Checked)
-            {
-                if (button9.Text == "停止监听")
-                {
-                    if (comboBox3.Text == "TCP")
-                    {
-                        try
-                        {
-                            if (th.IsAlive)
-                            {
-                                string ip = peerip;
-
-                                byte[] buffer = Encoding.UTF8.GetBytes(Buf);
-
-                                dic[ip].Send(buffer);
-                                label22.Text = (Convert.ToUInt32(label22.Text) + Buf.Length).ToString();
-                                if (checkBox3.Checked)
-                                {
-                                    textBox1.AppendText(Buf);
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            MessageBox.Show(this, ex.Message, "error");
-                        }
-                    }
-                    else if (comboBox3.Text == "UDP")
-                        UDP_Send(Buf);
-                }
-            }
+            Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
+            StrSend(Buf, gb);
         }
 
         private void trackBar1_MouseUp(object sender, MouseEventArgs e)
         {
             string Buf = "FB:" + label5.Text + ":OVER\r\n";
-            if (radioButton4.Checked)
-            {
-                if (serialPort1.IsOpen)
-                {
-                    Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
-                    byte[] bytes = gb.GetBytes(Buf);
-                    serialPort1.Write(bytes, 0, bytes.Length);
-                    label22.Text = (Convert.ToUInt32(label22.Text) + Buf.Length).ToString();
-                    if (checkBox3.Checked)
-                    {
-                        textBox1.AppendText(Buf);
-                    }
-                }
-            }
-            else if (radioButton3.Checked)
-            {
-                if (button9.Text == "停止监听")
-                {
-                    if (comboBox3.Text == "TCP")
-                    {
-                        try
-                        {
-                            if (th.IsAlive)
-                            {
-                                string ip = peerip;
-
-                                byte[] buffer = Encoding.UTF8.GetBytes(Buf);
-
-                                dic[ip].Send(buffer);
-                                label22.Text = (Convert.ToUInt32(label22.Text) + Buf.Length).ToString();
-                                if (checkBox3.Checked)
-                                {
-                                    textBox1.AppendText(Buf);
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            MessageBox.Show(this, ex.Message, "error");
-                        }
-                    }
-                    else if (comboBox3.Text == "UDP")
-                        UDP_Send(Buf);
-                }
-            }
+            Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
+            StrSend(Buf, gb);
         }
 
         private void trackBar2_MouseUp(object sender, MouseEventArgs e)
         {
             string Buf = "RL:" + label7.Text + ":OVER\r\n";
-            if (radioButton4.Checked)
-            {
-                if (serialPort1.IsOpen)
-                {
-                    Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
-                    byte[] bytes = gb.GetBytes(Buf);
-                    serialPort1.Write(bytes, 0, bytes.Length);
-                    label22.Text = (Convert.ToUInt32(label22.Text) + Buf.Length).ToString();
-                    if (checkBox3.Checked)
-                    {
-                        textBox1.AppendText(Buf);
-                    }
-                }
-            }
-            else if (radioButton3.Checked)
-            {
-                if (button9.Text == "停止监听")
-                {
-                    if (comboBox3.Text == "TCP")
-                    {
-                        try
-                        {
-                            if (th.IsAlive)
-                            {
-                                string ip = peerip;
-
-                                byte[] buffer = Encoding.UTF8.GetBytes(Buf);
-
-                                dic[ip].Send(buffer);
-                                label22.Text = (Convert.ToUInt32(label22.Text) + Buf.Length).ToString();
-                                if (checkBox3.Checked)
-                                {
-                                    textBox1.AppendText(Buf);
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            MessageBox.Show(this, ex.Message, "error");
-                        }
-                    }
-                    else if (comboBox3.Text == "UDP")
-                        UDP_Send(Buf);
-                }
-            }
+            Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
+            StrSend(Buf, gb);
         }
 
         private void button6_Click(object sender, EventArgs e)
@@ -891,7 +782,7 @@ namespace WindowsFormsApp1
 
         private void label1_DoubleClick(object sender, EventArgs e)
         {
-            MessageBox.Show("Project Version 4.5 By ClockSR\r\n                                     2018.8.25","小车上位机");
+            MessageBox.Show(("Project Version " + prover + " By ClockSR\r\n                                       2018.8.25"), this.Text);
         }
 
         private void textBox4_Leave(object sender, EventArgs e)
@@ -924,51 +815,8 @@ namespace WindowsFormsApp1
                 trackBar2.Value = 50;
                 label7.Text = Convert.ToString(trackBar2.Value);
                 string Buf = "FR:" + label5.Text + ":" + label7.Text + ":OVER\r\n";
-                if (radioButton4.Checked)
-                {
-                    if (serialPort1.IsOpen)
-                    {
-                        Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
-                        byte[] bytes = gb.GetBytes(Buf);
-                        serialPort1.Write(bytes, 0, bytes.Length);
-                        label22.Text = (Convert.ToUInt32(label22.Text) + Buf.Length).ToString();
-                        if (checkBox3.Checked)
-                        {
-                            textBox1.AppendText(Buf);
-                        }
-                    }
-                }
-                else if (radioButton3.Checked)
-                {
-                    if (button9.Text == "停止监听")
-                    {
-                        if (comboBox3.Text == "TCP")
-                        {
-                            try
-                            {
-                                if (th.IsAlive)
-                                {
-                                    string ip = peerip;
-
-                                    byte[] buffer = Encoding.UTF8.GetBytes(Buf);
-
-                                    dic[ip].Send(buffer);
-                                    label22.Text = (Convert.ToUInt32(label22.Text) + Buf.Length).ToString();
-                                    if (checkBox3.Checked)
-                                    {
-                                        textBox1.AppendText(Buf);
-                                    }
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                MessageBox.Show(this, ex.Message, "error");
-                            }
-                        }
-                        else if (comboBox3.Text == "UDP")
-                            UDP_Send(Buf);
-                    }
-                }
+                Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
+                StrSend(Buf,gb);
             }
         }
 
@@ -1083,6 +931,222 @@ namespace WindowsFormsApp1
             label13.Text = "0";
             label15.Text = "0";
             label1.Text = "数据清除成功";
+        }
+
+        private string StrToHex(string s)
+        {
+            string[] st = s.Trim().Split(' ');
+            byte[] b = new byte[st.Length];//按照指定编码将string编程字节数组
+            string result = string.Empty;
+            for (int i = 0; i < st.Length; i++)//逐字节变为16进制字符，以%隔开
+            {
+                b[i] = Convert.ToByte(st[i],16);
+            }
+            result = Convert.ToString(System.Text.Encoding.ASCII.GetString(b));
+            return result;
+        }
+
+        private void StrSend(string Buf, Encoding gb)
+        {
+            if (radioButton4.Checked)
+            {
+                if (serialPort1.IsOpen)
+                {
+                    byte[] bytes = gb.GetBytes(Buf);
+                    serialPort1.Write(bytes, 0, bytes.Length);
+                    label22.Text = (Convert.ToUInt32(label22.Text) + Buf.Length).ToString();
+                    if (checkBox3.Checked)
+                    {
+                        textBox1.AppendText(Buf);
+                    }
+                }
+                else
+                    label1.Text = "串口未打开！";
+            }
+            else if (radioButton3.Checked)
+            {
+                if (button9.Text == "停止监听")
+                {
+                    if (comboBox3.Text == "TCP")
+                    {
+                        try
+                        {
+                            if (th.IsAlive)
+                            {
+                                string ip = peerip;
+
+                                byte[] buffer = gb.GetBytes(Buf);
+                                dic[ip].Send(buffer);
+                                label22.Text = (Convert.ToUInt32(label22.Text) + Buf.Length).ToString();
+                                if (checkBox3.Checked)
+                                {
+                                    textBox1.AppendText(Buf);
+                                }
+                            }
+                            else if (!th.IsAlive)
+                                label1.Text = "未连接到终端！";
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show(this, ex.Message, "error");
+                        }
+                    }
+                    else if (comboBox3.Text == "UDP")
+                    {
+                        UDP_Send(Buf);
+                    }
+                }
+            }
+        }
+
+        private void button11_Click(object sender, EventArgs e)
+        {
+            string Buf = textBox5.Text;
+            Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
+            if (checkBox4.Checked)
+            {
+                Buf = StrToHex(Buf);
+            }
+            StrSend(Buf, gb);
+        }
+
+        private void button12_Click(object sender, EventArgs e)
+        {
+            string Buf = textBox9.Text;
+            Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
+            if (checkBox5.Checked)
+            {
+                Buf = StrToHex(Buf);
+            }
+            StrSend(Buf, gb);
+        }
+
+        private void button13_Click(object sender, EventArgs e)
+        {
+            string Buf = textBox10.Text;
+            Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
+            if (checkBox6.Checked)
+            {
+                Buf = StrToHex(Buf);
+            }
+            StrSend(Buf, gb);
+        }
+
+        private void button14_Click(object sender, EventArgs e)
+        {
+            string Buf = textBox11.Text;
+            Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
+            if (checkBox7.Checked)
+            {
+                Buf = StrToHex(Buf);
+            }
+            StrSend(Buf, gb);
+        }
+
+        private void button15_Click(object sender, EventArgs e)
+        {
+            string Buf = textBox12.Text;
+            Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
+            if (checkBox8.Checked)
+            {
+                Buf = StrToHex(Buf);
+            }
+            StrSend(Buf, gb);
+        }
+
+        private void button16_Click(object sender, EventArgs e)
+        {
+            string Buf = textBox13.Text;
+            Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
+            if (checkBox9.Checked)
+            {
+                Buf = StrToHex(Buf);
+            }
+            StrSend(Buf, gb);
+        }
+
+        private void button17_Click(object sender, EventArgs e)
+        {
+            string Buf = textBox14.Text;
+            Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
+            if (checkBox10.Checked)
+            {
+                Buf = StrToHex(Buf);
+            }
+            StrSend(Buf, gb);
+        }
+
+        private void button18_Click(object sender, EventArgs e)
+        {
+            string Buf = textBox15.Text;
+            Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
+            if (checkBox11.Checked)
+            {
+                Buf = StrToHex(Buf);
+            }
+            StrSend(Buf, gb);
+        }
+
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            StreamWriter sw = new StreamWriter("Buffer.log", false);
+            if (checkBox4.Checked)
+                sw.WriteLine("U1;" + textBox5.Text + ";H");
+            else
+                sw.WriteLine("U1;" + textBox5.Text + ";A");
+            if (checkBox5.Checked)
+                sw.WriteLine("U2;" + textBox9.Text + ";H");
+            else
+                sw.WriteLine("U2;" + textBox9.Text + ";A");
+            if (checkBox6.Checked)
+                sw.WriteLine("U3;" + textBox10.Text + ";H");
+            else
+                sw.WriteLine("U3;" + textBox10.Text + ";A");
+            if (checkBox7.Checked)
+                sw.WriteLine("U4;" + textBox11.Text + ";H");
+            else
+                sw.WriteLine("U4;" + textBox11.Text + ";A");
+            if (checkBox8.Checked)
+                sw.WriteLine("U5;" + textBox12.Text + ";H");
+            else
+                sw.WriteLine("U5;" + textBox12.Text + ";A");
+            if (checkBox9.Checked)
+                sw.WriteLine("U6;" + textBox13.Text + ";H");
+            else
+                sw.WriteLine("U6;" + textBox13.Text + ";A");
+            if (checkBox10.Checked)
+                sw.WriteLine("U7;" + textBox14.Text + ";H");
+            else
+                sw.WriteLine("U7;" + textBox14.Text + ";A");
+            if (checkBox11.Checked)
+                sw.WriteLine("U8;" + textBox15.Text + ";H");
+            else
+                sw.WriteLine("U8;" + textBox15.Text + ";A");
+            sw.Close();
+        }
+
+        private void Form1_Move(object sender, EventArgs e)
+        {
+            int screenRight = Screen.PrimaryScreen.Bounds.Right;//屏幕右边缘
+            int formRight = this.Left + this.Size.Width;//窗口右边缘=窗口左上角x+窗口宽度
+            if (Math.Abs(screenRight - formRight) <= 10)//往右靠
+                this.Location = new System.Drawing.Point(screenRight+8 - this.Size.Width, this.Top);//当前窗口坐标赋值，实现吸附
+
+            if (Math.Abs(this.Left) <= 10)//往左靠
+                this.Location = new System.Drawing.Point(0-7, this.Top);
+
+            int screenBottom = Screen.PrimaryScreen.Bounds.Bottom;//屏幕下边缘
+            int workspace = Screen.PrimaryScreen.WorkingArea.Bottom;
+            int formBottom = this.Top + this.Size.Height;//窗口下边缘
+            if (Math.Abs(screenBottom - formBottom) <= 10)//往下靠
+                this.Location = new System.Drawing.Point(this.Left, screenBottom - this.Size.Height);
+
+            if (Math.Abs(workspace - formBottom) <= 10)//往下靠
+                this.Location = new System.Drawing.Point(this.Left, workspace - this.Size.Height+8);
+
+            if (Math.Abs(this.Top) <= 10)//往上靠
+                this.Location = new System.Drawing.Point(this.Left, 0);
+
         }
 
         private void button7_Click(object sender, EventArgs e)

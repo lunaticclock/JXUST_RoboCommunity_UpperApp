@@ -7,3 +7,14 @@ G:\Workspace\C++\WindowsFormsApp1\WindowsFormsApp1\bin\Debug\小车上位机V4.0
 G:\Workspace\C++\WindowsFormsApp1\WindowsFormsApp1\bin\Debug\小车上位机V4.0.pdb
 G:\Workspace\C++\WindowsFormsApp1\WindowsFormsApp1\obj\Debug\小车上位机V4.0.exe
 G:\Workspace\C++\WindowsFormsApp1\WindowsFormsApp1\obj\Debug\小车上位机V4.0.pdb
+G:\Workspace\C++\小车上位机\WindowsFormsApp1\bin\Debug\小车上位机V4.5.exe.config
+G:\Workspace\C++\小车上位机\WindowsFormsApp1\bin\Debug\小车上位机V4.5.exe
+G:\Workspace\C++\小车上位机\WindowsFormsApp1\bin\Debug\小车上位机V4.5.pdb
+G:\Workspace\C++\小车上位机\WindowsFormsApp1\obj\Debug\Interop.NetFwTypeLib.dll
+G:\Workspace\C++\小车上位机\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.csproj.ResolveComReference.cache
+G:\Workspace\C++\小车上位机\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.Form1.resources
+G:\Workspace\C++\小车上位机\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.Properties.Resources.resources
+G:\Workspace\C++\小车上位机\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.csproj.GenerateResource.cache
+G:\Workspace\C++\小车上位机\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.csproj.CoreCompileInputs.cache
+G:\Workspace\C++\小车上位机\WindowsFormsApp1\obj\Debug\小车上位机V4.5.exe
+G:\Workspace\C++\小车上位机\WindowsFormsApp1\obj\Debug\小车上位机V4.5.pdb

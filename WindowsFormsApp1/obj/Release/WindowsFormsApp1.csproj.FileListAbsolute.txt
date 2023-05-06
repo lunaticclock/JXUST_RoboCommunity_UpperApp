@@ -21,7 +21,6 @@ G:\Workspace\C++\小车上位机\WindowsFormsApp1\obj\Release\UpperApp.Propertie
 G:\Workspace\C#\小车上位机\WindowsFormsApp1\bin\Release\小车上位机V5.0.exe.config
 G:\Workspace\C#\小车上位机\WindowsFormsApp1\bin\Release\小车上位机V5.0.exe
 G:\Workspace\C#\小车上位机\WindowsFormsApp1\bin\Release\小车上位机V5.0.pdb
-G:\Workspace\C#\小车上位机\WindowsFormsApp1\obj\Release\WindowsFormsApp1.csprojAssemblyReference.cache
 G:\Workspace\C#\小车上位机\WindowsFormsApp1\obj\Release\Interop.NetFwTypeLib.dll
 G:\Workspace\C#\小车上位机\WindowsFormsApp1\obj\Release\WindowsFormsApp1.csproj.ResolveComReference.cache
 G:\Workspace\C#\小车上位机\WindowsFormsApp1\obj\Release\UpperApp.UpperApp.resources
@@ -30,3 +29,7 @@ G:\Workspace\C#\小车上位机\WindowsFormsApp1\obj\Release\WindowsFormsApp1.cs
 G:\Workspace\C#\小车上位机\WindowsFormsApp1\obj\Release\WindowsFormsApp1.csproj.CoreCompileInputs.cache
 G:\Workspace\C#\小车上位机\WindowsFormsApp1\obj\Release\小车上位机V5.0.exe
 G:\Workspace\C#\小车上位机\WindowsFormsApp1\obj\Release\小车上位机V5.0.pdb
+G:\Workspace\C#\小车上位机\WindowsFormsApp1\obj\Release\WindowsFormsApp1.csprojAssemblyReference.cache
+E:\Workspace\Workspace\C#\小车上位机\WindowsFormsApp1\obj\Release\WindowsFormsApp1.csprojAssemblyReference.cache
+E:\Workspace\Workspace\C#\小车上位机\WindowsFormsApp1\obj\Release\小车上位机V5.0.exe
+E:\Workspace\Workspace\C#\小车上位机\WindowsFormsApp1\obj\Release\小车上位机V5.0.pdb

@@ -2,13 +2,11 @@
 //#define File
 
 using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.IO.Ports;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -16,7 +14,6 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
-using System.Data;
 using InTheHand.Net.Bluetooth;
 using InTheHand.Net.Sockets;
 
@@ -65,31 +62,31 @@ namespace UpperApp
         public UpperApp()
         {
             InitializeComponent();
-            this.btnSend.Click += new EventHandler((sender, e) => { StrSend(SendBox.Text); });
-            this.btnNoRL.Click += new EventHandler((sender, e) => {
+            btnSend.Click += new EventHandler((sender, e) => { StrSend(SendBox.Text); });
+            btnNoRL.Click += new EventHandler((sender, e) => {
                 RLBar.Value = 50;
                 StrSend("RL:" + RLBar.Value + ":OVER\r\n");
             });
-            this.Stop.Click += new EventHandler((sender, e) => {
+            Stop.Click += new EventHandler((sender, e) => {
                 FBBar.Value = 50;
                 StrSend("FB:" + FBBar.Value + ":OVER\r\n");
             });
-            this.btnclRecv.Click += new EventHandler((sender, e) => { ResetRS(RecvOrSend.Recv); });
-            this.btnclSend.Click += new EventHandler((sender, e) => { ResetRS(RecvOrSend.Send); });
-            this.smallChange.Leave += new EventHandler((sender, e) => { FBBar.SmallChange = RLBar.SmallChange = int.Parse(smallChange.Text); });
-            this.FBBar.MouseUp += new MouseEventHandler((sender, e) => { StrSend("FB:" + FBBar.Value + ":OVER\r\n"); });
-            this.RLBar.MouseUp += new MouseEventHandler((sender, e) => { StrSend("RL:" + RLBar.Value + ":OVER\r\n"); });
+            btnclRecv.Click += new EventHandler((sender, e) => { ResetRS(RecvOrSend.Recv); });
+            btnclSend.Click += new EventHandler((sender, e) => { ResetRS(RecvOrSend.Send); });
+            smallChange.Leave += new EventHandler((sender, e) => { FBBar.SmallChange = RLBar.SmallChange = int.Parse(smallChange.Text); });
+            FBBar.MouseUp += new MouseEventHandler((sender, e) => { StrSend("FB:" + FBBar.Value + ":OVER\r\n"); });
+            RLBar.MouseUp += new MouseEventHandler((sender, e) => { StrSend("RL:" + RLBar.Value + ":OVER\r\n"); });
 
-            this.SerPortItem.Leave += new EventHandler((sender, e) => {
+            SerPortItem.Leave += new EventHandler((sender, e) => {
                 if (SerPortItem.Text != "")
                     serialPort1.PortName = SerPortItem.Text;
             });
-            this.SerPortItem.DropDown += new EventHandler((sender, e) => {
+            SerPortItem.DropDown += new EventHandler((sender, e) => {
                 SerPortItem.Items.Clear();
                 SerPortItem.Items.AddRange(SerialPort.GetPortNames());
             });
-            this.Baud.SelectionChangeCommitted += new EventHandler((sender, e) => { serialPort1.BaudRate = (Baud.Text != "") ? int.Parse(Baud.Text) : 115200; });
-            this.HostIP.DropDown += new EventHandler((sender, e) => {
+            Baud.SelectionChangeCommitted += new EventHandler((sender, e) => { serialPort1.BaudRate = (Baud.Text != "") ? int.Parse(Baud.Text) : 115200; });
+            HostIP.DropDown += new EventHandler((sender, e) => {
                 HostIP.Items.Clear();
                 GetLocalIP();
             });
@@ -124,17 +121,17 @@ namespace UpperApp
             //{
             //    btn[i].Click += new EventHandler((sender, e) => { btn_Click(i); });
             //}
-            this.btn[0].Click += new EventHandler((sender, e) => { btn_Click(0); });
-            this.btn[1].Click += new EventHandler((sender, e) => { btn_Click(1); });
-            this.btn[2].Click += new EventHandler((sender, e) => { btn_Click(2); });
-            this.btn[3].Click += new EventHandler((sender, e) => { btn_Click(3); });
-            this.btn[4].Click += new EventHandler((sender, e) => { btn_Click(4); });
-            this.btn[5].Click += new EventHandler((sender, e) => { btn_Click(5); });
-            this.btn[6].Click += new EventHandler((sender, e) => { btn_Click(6); });
-            this.btn[7].Click += new EventHandler((sender, e) => { btn_Click(7); });
+            btn[0].Click += new EventHandler((sender, e) => { btn_Click(0); });
+            btn[1].Click += new EventHandler((sender, e) => { btn_Click(1); });
+            btn[2].Click += new EventHandler((sender, e) => { btn_Click(2); });
+            btn[3].Click += new EventHandler((sender, e) => { btn_Click(3); });
+            btn[4].Click += new EventHandler((sender, e) => { btn_Click(4); });
+            btn[5].Click += new EventHandler((sender, e) => { btn_Click(5); });
+            btn[6].Click += new EventHandler((sender, e) => { btn_Click(6); });
+            btn[7].Click += new EventHandler((sender, e) => { btn_Click(7); });
             //*/
             CheckForIllegalCrossThreadCalls = false;
-            this.Text = proname + prover;
+            Text = proname + prover;
 
             string[] Com = new string[8];
             Com[0] = "9600";
@@ -376,8 +373,7 @@ namespace UpperApp
             }
             result += "\r\n";
             RecvBox.AppendText(result);
-            if (tf != null)
-                tf.WriteLine(getTime() + result);
+            tf?.WriteLine(getTime() + result);
         }
 
         //将字符串转换成16进制代码
@@ -385,7 +381,6 @@ namespace UpperApp
         {
             string[] st = s.Trim().Split(' ');
             byte[] b = new byte[st.Length];
-            string result = string.Empty;
             try//按照指定编码将string编程字节数组
             {
                 for (int i = 0; i < st.Length; i++)//以十六进制将字符串转换成字节
@@ -397,8 +392,8 @@ namespace UpperApp
             {
                 MessageBox.Show(this,"请将每字节间以空格分开");
             }
-            
-            result = Encoding.ASCII.GetString(b).ToString();
+
+            string result = Encoding.ASCII.GetString(b).ToString();
             return result;
         }
 
@@ -491,8 +486,7 @@ namespace UpperApp
             if (rbtnChar.Checked)
             {
                 RecvBox.AppendText(str);
-                if (tf != null)
-                    tf.WriteLine(getTime() + str);
+                tf?.WriteLine(getTime() + str);
             }
             else if (rbtnHex.Checked)
             {
@@ -510,34 +504,40 @@ namespace UpperApp
             IPEndPoint remoteIpAndPort = new IPEndPoint(IPAddress.Any, 0);
             while (true)
             {
-                ur = udp.Receive(ref remoteIpAndPort, receiveFromOld);
-
-                receiveFromOld = ur.IPPort;
-                Peer.Text = ur.IPPort;
-
-                if (!string.IsNullOrWhiteSpace(ur.NewPeer))
+                try
                 {
-                    RecvBox.AppendText(ur.NewPeer);
+                    ur = udp.Receive(ref remoteIpAndPort, receiveFromOld);
+
+                    receiveFromOld = ur.IPPort;
+                    Peer.Text = ur.IPPort;
+
+                    if (!string.IsNullOrWhiteSpace(ur.NewPeer))
+                    {
+                        RecvBox.AppendText(ur.NewPeer);
+                    }
+
+                    //界面显示
+
+                    if (AngDirDisp.Checked)
+                    {
+                        SetAngDisp(ur.Message);
+                    }
+
+                    if (rbtnChar.Checked)
+                    {
+                        RecvBox.AppendText(ur.Message);
+                        tf?.WriteLine(getTime() + ur.Message);
+                    }
+                    else if (rbtnHex.Checked)
+                        Str2Hexstr(ur.Message);
+
+                    //label18.Text = (int.Parse(label18.Text) + cnt).ToString();
+                    SetRS(ur.Num, RecvOrSend.Recv);
                 }
-
-                //界面显示
-
-                if (AngDirDisp.Checked)
+                catch (Exception ex)
                 {
-                    SetAngDisp(ur.Message);
+                    MessageBox.Show(this, ex.Message, "error");
                 }
-
-                if (rbtnChar.Checked)
-                {
-                    RecvBox.AppendText(ur.Message);
-                    if (tf != null)
-                        tf.WriteLine(getTime() + ur.Message);
-                }
-                else if (rbtnHex.Checked)
-                    Str2Hexstr(ur.Message);
-
-                //label18.Text = (int.Parse(label18.Text) + cnt).ToString();
-                SetRS(ur.Num, RecvOrSend.Recv);
             }//while(True)
         }
 
@@ -598,8 +598,7 @@ namespace UpperApp
                         {
                             string EndPoint = client.RemoteEndPoint.ToString();
                             RecvBox.AppendText(EndPoint + ":\r\n" + str + "\r\n");
-                            if (tf != null)
-                                tf.WriteLine(getTime() + EndPoint + ":\r\n" + str + "\r\n");
+                            tf?.WriteLine(getTime() + EndPoint + ":\r\n" + str + "\r\n");
                         }
                         else if (rbtnHex.Checked)
                         {
@@ -661,8 +660,10 @@ namespace UpperApp
                 listener = new BluetoothListener(BluetoothService.SerialPort);
                 listener.Start();
                 BthRecvBox.AppendText("Service started!\r\n");
-                Bthlisten = new Thread(BthListener);
-                Bthlisten.IsBackground = true;
+                Bthlisten = new Thread(BthListener)
+                {
+                    IsBackground = true
+                };
                 Bthlisten.Start();
                 BthListenBtn.Text = "关闭连接";
             }
@@ -686,8 +687,10 @@ namespace UpperApp
                 BthClient.Close();
                 BthClient = null;
                 BthRecvBox.AppendText("Service started!\r\n");
-                Bthlisten = new Thread(BthListener);
-                Bthlisten.IsBackground = true;
+                Bthlisten = new Thread(BthListener)
+                {
+                    IsBackground = true
+                };
                 Bthlisten.Start();
                 BthListenBtn.Text = "关闭连接";
             }
@@ -704,8 +707,10 @@ namespace UpperApp
             // Output data to stream
             bthsocket.Send(dataBuffer);
             SetRS(dataBuffer.Length, RecvOrSend.Send);
-            BthCon = new Thread(BthRecv);
-            BthCon.IsBackground = true;
+            BthCon = new Thread(BthRecv)
+            {
+                IsBackground = true
+            };
             BthCon.Start(bthsocket);
         }
 
@@ -765,7 +770,7 @@ namespace UpperApp
             }
             if (device != null)
             {
-                RecvBox.AppendText(String.Format("Name:{0} Address:{1:C}", device.DeviceName, device.DeviceAddress));
+                RecvBox.AppendText(string.Format("Name:{0} Address:{1:C}", device.DeviceName, device.DeviceAddress));
                 try
                 {
                     //BluetoothClient client = new BluetoothClient(this.CreateNewEndpoint(localAddress));
@@ -790,14 +795,14 @@ namespace UpperApp
                 peerStream.Read(buffer, 0, 50);
 
                 // Convert Data to String
-                string data = System.Text.ASCIIEncoding.ASCII.GetString(buffer, 0, 50);
+                string data = Encoding.ASCII.GetString(buffer, 0, 50);
                 RecvBox.AppendText("Receiving data: " + data);
 
                 int i = 0;
                 while (true)
                 {
                     RecvBox.AppendText("Writing: " + i.ToString());
-                    byte[] dataBuffer = System.Text.ASCIIEncoding.ASCII.GetBytes(i.ToString());
+                    byte[] dataBuffer = Encoding.ASCII.GetBytes(i.ToString());
 
                     peerStream.Write(dataBuffer, 0, dataBuffer.Length);
                     ++i;
@@ -831,9 +836,10 @@ namespace UpperApp
 
                             //同一个时间点过来10个客户端，排队
                             tcp.socket.Listen(10);
-                            thread = new Thread(AcceptInfo);
-
-                            thread.IsBackground = true;
+                            thread = new Thread(AcceptInfo)
+                            {
+                                IsBackground = true
+                            };
                             thread.Start(tcp.socket);
 
                             SocketIsOpen(true);
@@ -849,8 +855,10 @@ namespace UpperApp
                     {
                         udp.StartUDP(LocalIPEndPoint);
 
-                        ReceThread = new Thread(ReceProcess);//线程处理程序为 ReceProcess
-                        ReceThread.IsBackground = true;//后台线程，前台线程GG，它也GG
+                        ReceThread = new Thread(ReceProcess)
+                        {
+                            IsBackground = true//后台线程，前台线程GG，它也GG
+                        };//线程处理程序为 ReceProcess
                         ReceThread.Start();
 
                         SocketIsOpen(true);
@@ -990,8 +998,8 @@ namespace UpperApp
         {
             if (Rocker.Text == "摇杆关")
             {
-                int x = (int)(e.Location.X * 100 / 140);
-                int y = (int)((-e.Location.Y + 160) * 100 / 150);
+                int x = e.Location.X * 100 / 140;
+                int y = (-e.Location.Y + 160) * 100 / 150;
 
                 if (x < 0)
                     x = 0;
@@ -1013,7 +1021,7 @@ namespace UpperApp
                     string Buf = "FR:" + FBBar.Value + ":" + RLBar.Value + ":OVER\r\n";
                     if (rbtnSerial.Checked && serialPort1.IsOpen)
                     {
-                        Encoding gb = System.Text.Encoding.GetEncoding("gb2312");
+                        Encoding gb = Encoding.GetEncoding("gb2312");
                         byte[] buffer = gb.GetBytes(Buf);
                         serialPort1.Write(buffer, 0, buffer.Length);
                         SetRS(buffer.Length, RecvOrSend.Send);
@@ -1090,8 +1098,7 @@ namespace UpperApp
 
         private void MemTimer_Tick(object sender, EventArgs e)
         {
-            double usemem = 0;
-            usemem = (Process.GetCurrentProcess().PrivateMemorySize64 / 1024.0) / 1024.0;
+            double usemem = Process.GetCurrentProcess().PrivateMemorySize64 / 1024.0 / 1024.0;
             if (usemem > 100)
                 Application.Exit();
             try
@@ -1123,7 +1130,7 @@ namespace UpperApp
             if(SaveData.Checked)
             {
                 DialogResult dr = openFileDialog1.ShowDialog();
-                if (dr == System.Windows.Forms.DialogResult.OK)
+                if (dr == DialogResult.OK)
                 {
                     tf = new StreamWriter(@openFileDialog1.FileName, true);
                 }
@@ -1208,8 +1215,8 @@ namespace UpperApp
             angle = double.Parse(LabYaw.Text);
             xdist = Math.Cos(Math.PI * angle / 180) * dist;
             ydist = Math.Sin(Math.PI * angle / 180) * dist;
-            px = px + (int)(xdist / xpro);
-            py = py + (int)(ydist / ypro);
+            px += (int)(xdist / xpro);
+            py += (int)(ydist / ypro);
             RecvBox.AppendText("坐标点=" + px + "," + py + "\r\n");
             RecvBox.AppendText("路程=" + xdist + "," + ydist + "\r\n");
             g.FillEllipse(Brushes.Blue, px, 213 - py, 3, 3);
@@ -1217,7 +1224,7 @@ namespace UpperApp
 
         private void Info_DoubleClick(object sender, EventArgs e)
         {
-            MessageBox.Show(this, ("Project Version " + prover + " By ClockSR\r\n                                       2018.8.25"), this.Text);
+            MessageBox.Show(this, ("Project Version " + prover + " By ClockSR\r\n                                       2018.8.25"), Text);
         }
 
         private void btn_Click(int i)
@@ -1234,13 +1241,13 @@ namespace UpperApp
         private void OpenImage_Click(object sender, EventArgs e)
         {
             DialogResult dr = openFileDialog1.ShowDialog();
-            if (dr == System.Windows.Forms.DialogResult.OK)
+            if (dr == DialogResult.OK)
             {
                 try
                 {
                     Image image = Image.FromFile(@openFileDialog1.FileName);
                     MapBox.BackgroundImage = image;
-                    lhp = (float)(image.Height / MapBox.Height) / (float)(image.Width / MapBox.Width);
+                    lhp = image.Height / MapBox.Height / (float)(image.Width / MapBox.Width);
                 }
                 catch
                 {
@@ -1270,7 +1277,7 @@ namespace UpperApp
         private void ClearImage_Click(object sender, EventArgs e)
         {
             pflag = 0;
-            Graphics g = MapBox.CreateGraphics();
+            //Graphics g = MapBox.CreateGraphics();
             MapBox.Refresh();
             label34.Text = label36.Text = "0,0";
         }
@@ -1304,27 +1311,27 @@ namespace UpperApp
         private void UpperApp_Move(object sender, EventArgs e)
         {
             int screenRight = Screen.PrimaryScreen.Bounds.Right;//屏幕右边缘
-            int formRight = this.Left + this.Size.Width;//窗口右边缘=窗口左上角x+窗口宽度
+            int formRight = Left + Size.Width;//窗口右边缘=窗口左上角x+窗口宽度
             int screenBottom = Screen.PrimaryScreen.Bounds.Bottom;//屏幕下边缘
-            int screenTop = Screen.PrimaryScreen.Bounds.Top;//屏幕上边缘
-            int screenLeft = Screen.PrimaryScreen.Bounds.Left;//屏幕左边缘
+            //int screenTop = Screen.PrimaryScreen.Bounds.Top;//屏幕上边缘
+            //int screenLeft = Screen.PrimaryScreen.Bounds.Left;//屏幕左边缘
             int workspace = Screen.PrimaryScreen.WorkingArea.Bottom;
-            int formBottom = this.Top + this.Size.Height;//窗口下边缘
+            int formBottom = Top + Size.Height;//窗口下边缘
 
             if (Math.Abs(screenRight - formRight) <= 10)//往右靠
-                this.Location = new Point(screenRight + 8 - this.Size.Width, this.Top);//当前窗口坐标赋值，实现吸附
+                Location = new Point(screenRight + 8 - Size.Width, Top);//当前窗口坐标赋值，实现吸附
 
-            if (Math.Abs(this.Left) <= 10)//往左靠
-                this.Location = new Point(0 - 7, this.Top);
+            if (Math.Abs(Left) <= 10)//往左靠
+                Location = new Point(0 - 7, Top);
 
             if (Math.Abs(screenBottom - formBottom) <= 10)//往下靠
-                this.Location = new Point(this.Left, screenBottom - this.Size.Height + 8);
+                Location = new Point(Left, screenBottom - Size.Height + 8);
 
             if (Math.Abs(workspace - formBottom) <= 10)//往下靠
-                this.Location = new Point(this.Left, workspace - this.Size.Height + 8);
+                Location = new Point(Left, workspace - Size.Height + 8);
 
-            if (Math.Abs(this.Top) <= 10)//往上靠
-                this.Location = new Point(this.Left, 0);
+            if (Math.Abs(Top) <= 10)//往上靠
+                Location = new Point(Left, 0);
         }
     }//public partial class Form1 : Form
 }//namespace WindowsFormsApp1

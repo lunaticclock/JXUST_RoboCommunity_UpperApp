@@ -10,7 +10,7 @@ namespace UpperApp
     class TCPManager
     {
         public Socket socket { get; private set; } = null;
-        private Dictionary<string, Socket> TCPdic = new Dictionary<string, Socket>();
+        private readonly Dictionary<string, Socket> TCPdic = new Dictionary<string, Socket>();
 
         public void SetMonitorSocket(Socket s)
         {

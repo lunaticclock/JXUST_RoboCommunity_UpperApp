@@ -17,12 +17,12 @@ namespace UpperApp
         public UDPResult UDP_Send(string Buf, string peer)
         {
             UDPResult result = new UDPResult();
-            IPAddress RemoteIP;   //远端 IP                
+            //远端 IP                
             int RemotePort;      //远端 Port
             IPEndPoint RemoteIPEndPoint; //远端 IP&Port
             int num = peer.IndexOf(':');
 
-            if (IPAddress.TryParse(peer.Substring(0, num), out RemoteIP) == false)//远端 IP
+            if (IPAddress.TryParse(peer.Substring(0, num), out IPAddress RemoteIP) == false)//远端 IP
             {
                 result.status = Result.ResStatus.Error;
                 result.Message = "远端IP错误!";
@@ -83,7 +83,6 @@ namespace UpperApp
             }
             if (!result.IPPort.Equals(receiveFromOld))
             {
-                receiveFromOld = result.IPPort;
                 result.NewPeer = string.Format("\r\nfrom {0}:\r\n", result.IPPort);
             }
             result.Num = cnt;

@@ -11,18 +11,19 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
 using InTheHand.Net.Bluetooth;
 using InTheHand.Net.Sockets;
-
+using System.Runtime.Versioning;
+using System.Threading.Tasks;
 #if Firewall
     using NetFwTypeLib;
 #endif
 
 namespace UpperApp
 {
+    [SupportedOSPlatform("windows10.0.17763.0")]
     public partial class UpperApp : Form
     {
         private enum RecvOrSend
@@ -41,33 +42,28 @@ namespace UpperApp
         private float lhp = 1, truedist = 1, xpro, ypro, distance, befordist = 0;
         private int px, py, dx, dy, bx, by;
         private short pflag = 0;
-        //private Socket socket = null;
-        private Socket bthsocket = null;
-        private Thread thread = null;
-        private Thread BthCon = null;
-        private BluetoothListener listener = null;
-        private BluetoothClient BthClient = null;
-        private Thread Bthlisten = null;
-        private Thread ReceThread = null;
-        //private Dictionary<string, Socket> TCPdic = new Dictionary<string, Socket>();
         private CheckBox[] checks = new CheckBox[8];
         private TextBox[] texts = new TextBox[8];
         private Button[] btn = new Button[8];
-        private StreamWriter tf =null;
-        private BluetoothRadio br = null;
+        private StreamWriter tf = null;
         private UDPManager udp = new UDPManager();
         private TCPManager tcp = new TCPManager();
+        private BthManager bth = new BthManager();
+        private Encoding encoding;
         //   private delegate void clk(int i);
 
         public UpperApp()
         {
+
             InitializeComponent();
             btnSend.Click += new EventHandler((sender, e) => { StrSend(SendBox.Text); });
-            btnNoRL.Click += new EventHandler((sender, e) => {
+            btnNoRL.Click += new EventHandler((sender, e) =>
+            {
                 RLBar.Value = 50;
                 StrSend("RL:" + RLBar.Value + ":OVER\r\n");
             });
-            Stop.Click += new EventHandler((sender, e) => {
+            Stop.Click += new EventHandler((sender, e) =>
+            {
                 FBBar.Value = 50;
                 StrSend("FB:" + FBBar.Value + ":OVER\r\n");
             });
@@ -77,16 +73,19 @@ namespace UpperApp
             FBBar.MouseUp += new MouseEventHandler((sender, e) => { StrSend("FB:" + FBBar.Value + ":OVER\r\n"); });
             RLBar.MouseUp += new MouseEventHandler((sender, e) => { StrSend("RL:" + RLBar.Value + ":OVER\r\n"); });
 
-            SerPortItem.Leave += new EventHandler((sender, e) => {
+            SerPortItem.Leave += new EventHandler((sender, e) =>
+            {
                 if (SerPortItem.Text != "")
                     serialPort1.PortName = SerPortItem.Text;
             });
-            SerPortItem.DropDown += new EventHandler((sender, e) => {
+            SerPortItem.DropDown += new EventHandler((sender, e) =>
+            {
                 SerPortItem.Items.Clear();
                 SerPortItem.Items.AddRange(SerialPort.GetPortNames());
             });
             Baud.SelectionChangeCommitted += new EventHandler((sender, e) => { serialPort1.BaudRate = (Baud.Text != "") ? int.Parse(Baud.Text) : 115200; });
-            HostIP.DropDown += new EventHandler((sender, e) => {
+            HostIP.DropDown += new EventHandler((sender, e) =>
+            {
                 HostIP.Items.Clear();
                 GetLocalIP();
             });
@@ -148,32 +147,39 @@ namespace UpperApp
             NetType[0] = "TCP";
             NetType[1] = "UDP";
             this.NetType.Items.AddRange(NetType);
-
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            encoding = Encoding.GetEncoding("GB2312");
             //serialPort1.BaudRate = 115200;
             serialPort1.NewLine = "\r\n";
-            serialPort1.Encoding = Encoding.GetEncoding("GB2312");
+            serialPort1.Encoding = encoding;
             Tim.Text = "1000";
             GetLocalIP();
-            
-            #if File
+            ChoseSlaveBthList.DataSource = bth.BthClients.connectionKeys;
+            Peer.DataSource = tcp.TCPdic.connectionKeys;
+
+            tcp.StatusChanged += NetManager_StatusChanged;
+            udp.StatusChanged += NetManager_StatusChanged;
+            bth.StatusChanged += BthManager_StatusChanged;
+
+#if File
                 if (!File.Exists("Buffer.log"))
                 {
                     FileStream fs = new FileStream("Buffer.log", FileMode.OpenOrCreate);
                     fs.Close();
                 }
-            #endif
+#endif
 
             filerd();
             this.DoubleBuffered = true;
             this.SetStyle(ControlStyles.AllPaintingInWmPaint, true);
 
-            #if Firewall
+#if Firewall
                 NetFwAddApps(proname, Application.ExecutablePath);
-            #endif
+#endif
         }
 
         #region 添加防火墙允许列表的代码
-            #if Firewall
+#if Firewall
                 public static void NetFwAddApps(string name, string executablePath)
                 {
                     INetFwMgr netFwMgr = (INetFwMgr)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwMgr"));
@@ -205,11 +211,11 @@ namespace UpperApp
                     if (!exist)
                         netFwMgr.LocalPolicy.CurrentProfile.AuthorizedApplications.Add(app);
                 }
-            #endif
+#endif
         #endregion
 
         #region 记忆功能相关代码
-            #if File
+#if File
                 private void filerd()
                 {
                     string data = string.Empty;
@@ -236,27 +242,27 @@ namespace UpperApp
                     }
                     sr.Close();
                 }
-            #else
-                private void filerd()
+#else
+        private void filerd()
+        {
+            RegistryKey hkSoftWare;
+            RegistryKey regkey;
+            if ((hkSoftWare = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\JXUST")) != null)
+            {
+                if ((regkey = hkSoftWare.OpenSubKey("Buf")) != null)
                 {
-                    RegistryKey hkSoftWare;
-                    RegistryKey regkey;
-                    if ((hkSoftWare = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\JXUST")) != null)
+                    for (int i = 0; i < 8; i++)
                     {
-                        if ((regkey = hkSoftWare.OpenSubKey("Buf")) != null)
-                        {
-                            for (int i = 0; i < 8; i++)
-                            {
-                                texts[i].Text = regkey.GetValue("UB" + (i + 1)).ToString();
-                                checks[i].CheckState = (CheckState)int.Parse(regkey.GetValue("UH" + (i + 1)).ToString());
-                            }
-                            Port.Text = regkey.GetValue("Port").ToString();
-                            regkey.Close();
-                        }
-                        hkSoftWare.Close();
+                        texts[i].Text = regkey.GetValue("UB" + (i + 1)).ToString();
+                        checks[i].CheckState = (CheckState)int.Parse(regkey.GetValue("UH" + (i + 1)).ToString());
                     }
+                    Port.Text = regkey.GetValue("Port").ToString();
+                    regkey.Close();
                 }
-            #endif
+                hkSoftWare.Close();
+            }
+        }
+#endif
         #endregion
 
         private string getTime()
@@ -275,6 +281,129 @@ namespace UpperApp
             {
                 sn += n;
                 label22.Text = sn.ToString();
+            }
+        }
+
+        private void NetManager_StatusChanged(Result status)
+        {
+            // 确保在UI线程上更新UI
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => NetManager_StatusChanged(status)));
+            }
+            else
+            {
+                switch (status.NetStatus)
+                {
+                    case Result.NETStatus.ManualStop: Peer.Text = ""; break;
+                    case Result.NETStatus.ExceptionStop:
+                        {
+                            if (!string.Equals(status.Message, "你的主机中的软件中止了一个已建立的连接。"))
+                                MessageBox.Show(this, status.Message, "error");
+                            Peer.Text = "";
+                        }; break;
+                    case Result.NETStatus.RemoteStop: Peer.Text = ""; Infotext.Text = status.Message; break;
+                    case Result.NETStatus.ReciveMessage:
+                        {
+                            if (!string.IsNullOrWhiteSpace(status.IPPort))
+                            {
+                                Peer.Text = status.IPPort;
+                            }
+                            SetRS(status.Num, RecvOrSend.Recv);
+                            if (rbtnChar.Checked)
+                            {
+                                if (!string.IsNullOrWhiteSpace(status.NewPeer))
+                                {
+                                    RecvBox.AppendText(status.NewPeer);
+                                    RecvBox.AppendText(status.Message);
+                                    tf?.WriteLine(getTime() + status.Message);
+                                }
+                                else
+                                {
+                                    string EndPoint = status.RemoteIP;
+                                    RecvBox.AppendText(EndPoint + ":\r\n" + status.Message + "\r\n");
+                                    tf?.WriteLine(getTime() + EndPoint + ":\r\n" + status.Message + "\r\n");
+                                }
+                            }
+                            else if (rbtnHex.Checked)
+                            {
+                                if (!string.IsNullOrWhiteSpace(status.NewPeer))
+                                {
+                                    RecvBox.AppendText(status.NewPeer);
+                                }
+                                Str2Hexstr(status.Message);
+                            }
+
+                            if (AngDirDisp.Checked)
+                            {
+                                SetAngDisp(status.Message);
+                            }
+                        }; break;
+                    case Result.NETStatus.SendMessage:
+                        {
+                            if (status.status == Result.ResStatus.SetNum)
+                            {
+                                if (ReDisp.Checked)
+                                    RecvBox.AppendText(status.Message);
+                                SetRS(status.Num, RecvOrSend.Send);
+                            }
+                            else if (status.status == Result.ResStatus.Error)
+                            {
+                                Infotext.Text = status.Message;
+                            }
+                        }; break;
+                    case Result.NETStatus.NewRemote:
+                        {
+                            Infotext.Text = "连接成功！";
+                            Peer.Text = status.Message;
+                        }; break;
+                    case Result.NETStatus.MonitorStop: SocketIsOpen(false); break;
+                    case Result.NETStatus.MonitorStart: SocketIsOpen(true); break;
+                    default: break;
+                }
+            }
+        }
+
+        private void BthManager_StatusChanged(Result status)
+        {
+            // 确保在UI线程上更新UI
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => BthManager_StatusChanged(status)));
+            }
+            else
+            {
+                switch (status.NetStatus)
+                {
+                    case Result.NETStatus.ManualStop: Peer.Text = ""; break;
+                    case Result.NETStatus.ExceptionStop:
+                        {
+                            MessageBox.Show(this, status.Message, "error");
+                            Peer.Text = "";
+                        }; break;
+                    case Result.NETStatus.RemoteStop:
+                        {
+                            Infotext.Text = "连接断开!";
+                            BthListenBtn.Text = "连接断开";
+                        }; break;
+                    case Result.NETStatus.ReciveMessage:
+                        {
+                            BthRecvBox.AppendText("Receiving data: " + status.Message + "\r\n");
+                            SetRS(status.Num, RecvOrSend.Recv);
+                        }; break;
+                    case Result.NETStatus.SendMessage:
+                        {
+                            BthRecvBox.AppendText(status.Message);
+                            SetRS(status.Num, RecvOrSend.Send);
+                        }; break;
+                    case Result.NETStatus.NewRemote:
+                        {
+                            BthRecvBox.AppendText(status.Message);
+                        }; break;
+                    case Result.NETStatus.MonitorStop: break;
+                    case Result.NETStatus.MonitorStart: break;
+                    default: break;
+                }
             }
         }
 
@@ -315,26 +444,13 @@ namespace UpperApp
             }
         }
 
-        private void SetInfoAfterUDPSend(UDPResult result)
-        {
-            if (result.status == Result.ResStatus.SetNum)
-            {
-                if (ReDisp.Checked)
-                    RecvBox.AppendText(result.Message);
-                SetRS(result.Num, RecvOrSend.Send);
-            }
-            else if (result.status == Result.ResStatus.Error)
-            {
-                Infotext.Text = result.Message;
-            }
-        }
-
         private void UpperApp_Load(object sender, EventArgs e)
         {
-            EventHandler<BluetoothWin32AuthenticationEventArgs> handler = new EventHandler<BluetoothWin32AuthenticationEventArgs>(HandleRequests);
+            //EventHandler<BluetoothWin32AuthenticationEventArgs> handler = new EventHandler<BluetoothWin32AuthenticationEventArgs>(HandleRequests);
             serialPort1.DataReceived += new SerialDataReceivedEventHandler(serialPort1_Rx);//必须手动添加事件处理程序
             FBtext.DataBindings.Add("Text", FBBar, "Value", false, DataSourceUpdateMode.OnPropertyChanged);
             RLtext.DataBindings.Add("Text", RLBar, "Value", false, DataSourceUpdateMode.OnPropertyChanged);
+
         }
 
         public void GetLocalIP()
@@ -390,7 +506,7 @@ namespace UpperApp
             }
             catch
             {
-                MessageBox.Show(this,"请将每字节间以空格分开");
+                MessageBox.Show(this, "请将每字节间以空格分开");
             }
 
             string result = Encoding.ASCII.GetString(b).ToString();
@@ -400,12 +516,11 @@ namespace UpperApp
         //发送数据  串口TCP和UDP
         private void StrSend(string Buf)
         {
-            Encoding gb = Encoding.GetEncoding("gb2312");
-            byte[] buffer = gb.GetBytes(Buf);
             if (rbtnSerial.Checked)
             {
                 if (serialPort1.IsOpen)
                 {
+                    byte[] buffer = encoding.GetBytes(Buf);
                     serialPort1.Write(buffer, 0, buffer.Length);
                     SetRS(buffer.Length, RecvOrSend.Send);
                     if (ReDisp.Checked)
@@ -427,12 +542,7 @@ namespace UpperApp
                                 Infotext.Text = "未选定端口";
                             else
                             {
-                                tcp.Send(ip, buffer);
-                                SetRS(buffer.Length,RecvOrSend.Send);
-                                if (ReDisp.Checked)
-                                {
-                                    RecvBox.AppendText(Buf);
-                                }
+                                tcp.Send(ip, Buf);
                             }
                         }
                         catch (Exception ex)
@@ -444,30 +554,10 @@ namespace UpperApp
                     }//if (NetType.Text == "TCP")
                     else if (NetType.Text == "UDP")
                     {
-                        UDPResult result = udp.UDP_Send(Buf, Peer.Text);
-                        SetInfoAfterUDPSend(result);
+                        udp.UDP_Send(Buf, Peer.Text);
                     }
                 }//if (btnListen.Text == "停止监听")
             }//if (rbtnNET.Checked)
-        }
-
-        private void StrSend(string Buf,bool IsBth)
-        {
-            if(BthCon != null && BthCon.IsAlive)
-            {
-                try
-                {
-                    Encoding gb = Encoding.GetEncoding("gb2312");
-                    BthRecvBox.AppendText(Buf);
-                    byte[] buffer = gb.GetBytes(Buf);
-                    bthsocket.Send(buffer);
-                    SetRS(buffer.Length, RecvOrSend.Send);
-                }
-                catch(Exception ex)
-                {
-                    MessageBox.Show(this, ex.Message, "error");
-                }
-            }
         }
 
         private void serialPort1_Rx(object sender, SerialDataReceivedEventArgs e)
@@ -475,7 +565,7 @@ namespace UpperApp
             int n = serialPort1.BytesToRead;
             byte[] Buf = new byte[n];
             serialPort1.Read(Buf, 0, n);
-            string str = Encoding.Default.GetString(Buf);
+            string str = encoding.GetString(Buf);
             SetRS(n, RecvOrSend.Recv);
 
             if (AngDirDisp.Checked)
@@ -494,324 +584,65 @@ namespace UpperApp
             }
         }
 
-        private void ReceProcess()//UDPRecv
+        private void BthListenBtn_Click(object sender, EventArgs e)
         {
-            //int cnt = 0;
-            string receiveFromOld = "";
-            //string receiveFromNew = "";
-            UDPResult ur;
-            //定义IPENDPOINT，装载远程IP地址和端口 
-            IPEndPoint remoteIpAndPort = new IPEndPoint(IPAddress.Any, 0);
-            while (true)
+            if (bth.br == null)
             {
-                try
-                {
-                    ur = udp.Receive(ref remoteIpAndPort, receiveFromOld);
-
-                    receiveFromOld = ur.IPPort;
-                    Peer.Text = ur.IPPort;
-
-                    if (!string.IsNullOrWhiteSpace(ur.NewPeer))
-                    {
-                        RecvBox.AppendText(ur.NewPeer);
-                    }
-
-                    //界面显示
-
-                    if (AngDirDisp.Checked)
-                    {
-                        SetAngDisp(ur.Message);
-                    }
-
-                    if (rbtnChar.Checked)
-                    {
-                        RecvBox.AppendText(ur.Message);
-                        tf?.WriteLine(getTime() + ur.Message);
-                    }
-                    else if (rbtnHex.Checked)
-                        Str2Hexstr(ur.Message);
-
-                    //label18.Text = (int.Parse(label18.Text) + cnt).ToString();
-                    SetRS(ur.Num, RecvOrSend.Recv);
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(this, ex.Message, "error");
-                }
-            }//while(True)
-        }
-
-        void AcceptInfo(object o)//TCPLink
-        {
-
-            Socket aSocket = o as Socket;
-
-            while (true)
-            {
-                //创建通信用的Socket
-                try
-                {
-                    Socket tSocket = aSocket.Accept();
-                    string point = tSocket.RemoteEndPoint.ToString();
-
-                    Infotext.Text = "连接成功！";
-
-                    tcp.Add(point, tSocket);
-                    Peer.Text = point;
-                    //接收消息
-                    ThreadPool.QueueUserWorkItem(ReceiveMsg, tSocket);
-                    //    Thread th = new Thread(ReceiveMsg);
-                    //    th.IsBackground = true;
-                    //    th.Start(tSocket);
-                }
-                catch //(Exception ex)
-                {
-                    //MessageBox.Show(this, ex.Message, "error");
-                    break;
-                }
+                MessageBox.Show(this, "检测不到本机蓝牙设备", "error");
             }
-        }
-
-        void ReceiveMsg(object o)//TCPRecv
-        {
-            Socket client = o as Socket;
-            while (true)
+            else if (bth.br.Mode == RadioMode.PowerOff)
             {
-                try
-                {
-                    byte[] buffer = new byte[1024 * 1024];
-                    int n = client.Receive(buffer);
-                    if (n == 0)
-                    {
-                        if(tcp.RemoveBySocket(client))
-                        {
-                            Peer.Text = "";
-                        }
-                        break;
-                    }
-                    else
-                    {
-                        string str = Encoding.UTF8.GetString(buffer, 0, n);
-                        //label18.Text = (int.Parse(label18.Text) + n).ToString();
-                        SetRS(n, RecvOrSend.Recv);
-                        if (rbtnChar.Checked)
-                        {
-                            string EndPoint = client.RemoteEndPoint.ToString();
-                            RecvBox.AppendText(EndPoint + ":\r\n" + str + "\r\n");
-                            tf?.WriteLine(getTime() + EndPoint + ":\r\n" + str + "\r\n");
-                        }
-                        else if (rbtnHex.Checked)
-                        {
-                            Str2Hexstr(str);
-                        }
-
-                        if (AngDirDisp.Checked)
-                        {
-                            SetAngDisp(str);
-                        }//if (checkBox2.Checked)
-                    }//if (n == 0)
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(this, ex.Message, "error");
-                    if (tcp.RemoveBySocket(client))
-                    {
-                        Peer.Text = "";
-                    }
-                    break;
-                }
-            }//while (true)
-        }
-
-        private void BthDispBtn_Click(object sender, EventArgs e)
-        {
-            if (br == null)
-            {
-                br = BluetoothRadio.PrimaryRadio;
-                if (br == null)
-                {
-                    BthRecvBox.AppendText("No radio hardware or unsupported software stack\r\n");
-                    return;
-                }
-                // Warning: LocalAddress is null if the radio is powered-off.
-                BthRecvBox.AppendText(String.Format("* Radio, address: {0:C}\r\n", br.LocalAddress));
-                BthRecvBox.AppendText("Mode: " + br.Mode.ToString() + "\r\n");
-                BthRecvBox.AppendText("Name: " + br.Name + ", LmpSubversion: " + br.LmpSubversion + "\r\n");
-                BthRecvBox.AppendText("ClassOfDevice: " + br.ClassOfDevice.ToString() + ", device: " + br.ClassOfDevice.Device.ToString() + " / service: " + br.ClassOfDevice.Service.ToString() + "\r\n");
-
-                // Enable discoverable mode
-                br.Mode = RadioMode.Discoverable;
-                BthRecvBox.AppendText("Radio Mode now: " + br.Mode.ToString() + "\r\n");
-                BthDispBtn.Text = "隐藏设备";
+                MessageBox.Show(this, "请先在系统中打开蓝牙", "warning");
             }
             else
             {
-                br.Mode = RadioMode.PowerOff;
-                br = null;
-                BthRecvBox.AppendText("Blutooth Device is PowerDown!\r\n");
-                BthDispBtn.Text = "设备可见";
-            }
-        }
-
-        private void BthListenBtn_Click(object sender, EventArgs e)
-        {
-            if (BthCon == null && listener == null)
-            {
-                listener = new BluetoothListener(BluetoothService.SerialPort);
-                listener.Start();
-                BthRecvBox.AppendText("Service started!\r\n");
-                Bthlisten = new Thread(BthListener)
+                BthRecvBox.AppendText(string.Format("* Radio, address: {0:C}\r\n", bth.br.LocalAddress));
+                BthRecvBox.AppendText("Mode: " + bth.br.Mode.ToString() + "\r\n");
+                if (bth.BthMonitor == null)
                 {
-                    IsBackground = true
-                };
-                Bthlisten.Start();
-                BthListenBtn.Text = "关闭连接";
-            }
-			else if(BthCon == null)
-			{
-				
-			}
-            else if(BthCon.IsAlive)
-            {
-                BthClient.Close();
-                BthClient = null;
-                BthCon.Abort();
-                BthCon = null;
-                listener.Stop();
-                listener = null;
-                BthListenBtn.Text = "监听";
-            }
-            else if(BthCon != null)
-            {
-                BthCon = null;
-                BthClient.Close();
-                BthClient = null;
-                BthRecvBox.AppendText("Service started!\r\n");
-                Bthlisten = new Thread(BthListener)
-                {
-                    IsBackground = true
-                };
-                Bthlisten.Start();
-                BthListenBtn.Text = "关闭连接";
-            }
-        }
-
-        private void BthListener()
-        {
-            BthClient = listener.AcceptBluetoothClient();
-            BthRecvBox.AppendText("Got a request!\r\n");
-            bthsocket = BthClient.Client;
-            string dataToSend = "Hello from service!\r\n";
-            // Convert dataToSend into a byte array
-            byte[] dataBuffer = Encoding.ASCII.GetBytes(dataToSend);
-            // Output data to stream
-            bthsocket.Send(dataBuffer);
-            SetRS(dataBuffer.Length, RecvOrSend.Send);
-            BthCon = new Thread(BthRecv)
-            {
-                IsBackground = true
-            };
-            BthCon.Start(bthsocket);
-        }
-
-        private void BthRecv(object peers)
-        {
-            byte[] buffer = new byte[1024];
-            Socket peer = (Socket)peers;
-            while (true)
-            {
-                try
-                {
-                    int n = peer.Receive(buffer);
-                    if (n == 0)
-                    {
-                        Infotext.Text = "连接断开!";
-                        BthListenBtn.Text = "连接断开";
-                        return;
-                    } 
-                    string data = Encoding.UTF8.GetString(buffer, 0, n);
-                    BthRecvBox.AppendText("Receiving data: " + data + "\r\n");
-                    SetRS(n, RecvOrSend.Recv);
+                    bth.StartMonitor();
+                    BthRecvBox.AppendText("Service started!\r\n");
+                    BthListenBtn.Text = "关闭";
                 }
-                catch//(Exception ex)
+                else if (bth.BthMonitor != null)
                 {
-                    //MessageBox.Show(this, ex.Message, "error");
-                    break;
+                    bth.StopMonitor();
+                    BthListenBtn.Text = "监听";
                 }
             }
         }
 
         private void BthSendBtn_Click(object sender, EventArgs e)
         {
-            if (BthCon != null && BthCon.IsAlive)
-            {
-                StrSend(BthSendBox.Text, true);
-            }
+            if (BthConnectBtn.Text == "断开")
+                bth.StrSend(BthSendBox.Text);
+            else if (!string.IsNullOrEmpty(ChoseSlaveBthList.Text))
+                bth.StrSend(BthSendBox.Text, bth.GetSlaveClient(ChoseSlaveBthList.Text));
+            else
+                MessageBox.Show(this, "请连接设备", "warning");
         }
 
-        private void HandleRequests(object that, BluetoothWin32AuthenticationEventArgs e)
-        {
-            e.Confirm = true;
-        }
+        //private void HandleRequests(object that, BluetoothWin32AuthenticationEventArgs e)
+        //{
+        //    e.Confirm = true;
+        //}
 
         private void BthConnectBtn_Click(object sender, EventArgs e)
         {
-            BluetoothClient client = new BluetoothClient();
-            BluetoothDeviceInfo[] devices = client.DiscoverDevices();
-            BluetoothDeviceInfo device = null;
-            foreach (BluetoothDeviceInfo d in devices)
+            if (BthDeviceList.SelectedIndex == -1)
             {
-                RecvBox.AppendText(d.DeviceName + "\r\n");
-                if (d.DeviceName == "HUAWEI P30")
+                if (BthConnectBtn.Text == "连接")
+                    MessageBox.Show(this, "请选择设备", "warning");
+                else
                 {
-                    device = d;
-                    break;
+                    bth.DisconnectClient();
+                    BthConnectBtn.Text = "连接";
                 }
             }
-            if (device != null)
+            else
             {
-                RecvBox.AppendText(string.Format("Name:{0} Address:{1:C}", device.DeviceName, device.DeviceAddress));
-                try
-                {
-                    //BluetoothClient client = new BluetoothClient(this.CreateNewEndpoint(localAddress));
-                    //BluetoothEndPoint ep = this.CreateNewEndpoint(device.DeviceAddress);
-
-                    EventHandler<BluetoothWin32AuthenticationEventArgs> handler = new EventHandler<BluetoothWin32AuthenticationEventArgs>(HandleRequests);
-                    BluetoothWin32Authentication auth = new BluetoothWin32Authentication(handler);
-
-                    BluetoothSecurity.PairRequest(device.DeviceAddress, null);
-                }
-                catch
-                {
-                    return;
-                }
-                client.Connect(device.DeviceAddress, BluetoothService.SerialPort);
-                Stream peerStream = client.GetStream();
-
-                // Create storage for receiving data
-                byte[] buffer = new byte[2000];
-
-                // Read Data
-                peerStream.Read(buffer, 0, 50);
-
-                // Convert Data to String
-                string data = Encoding.ASCII.GetString(buffer, 0, 50);
-                RecvBox.AppendText("Receiving data: " + data);
-
-                int i = 0;
-                while (true)
-                {
-                    RecvBox.AppendText("Writing: " + i.ToString());
-                    byte[] dataBuffer = Encoding.ASCII.GetBytes(i.ToString());
-
-                    peerStream.Write(dataBuffer, 0, dataBuffer.Length);
-                    ++i;
-                    if (i >= int.MaxValue)
-                    {
-                        i = 0;
-                    }
-                    Thread.Sleep(500);
-                }
+                bth.SetClient(bth.BthDevices[BthDeviceList.SelectedText]);
+                BthConnectBtn.Text = "断开";
             }
         }
 
@@ -826,25 +657,18 @@ namespace UpperApp
                     IPEndPoint LocalIPEndPoint = new IPEndPoint(LocalIP, LocalPort);
                     if (NetType.Text == "TCP")
                     {
+                        Peer.DataSource = tcp.TCPdic.connectionKeys;
                         //使用IPv4地址，流式socket方式，tcp协议传递数据
-                        tcp.SetMonitorSocket(new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp));
+                        Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
                         //创建好socket后，必须告诉socket绑定的IP地址和端口号。
                         try
                         {
-                            tcp.socket.Bind(LocalIPEndPoint);
+                            socket.Bind(LocalIPEndPoint);
 
                             //同一个时间点过来10个客户端，排队
-                            tcp.socket.Listen(10);
-                            thread = new Thread(AcceptInfo)
-                            {
-                                IsBackground = true
-                            };
-                            thread.Start(tcp.socket);
-
-                            SocketIsOpen(true);
-
-                            tcp.ClearPeer();
+                            socket.Listen(10);
+                            tcp.SetMonitorSocket(socket);
                         }
                         catch (Exception ex)
                         {
@@ -853,15 +677,8 @@ namespace UpperApp
                     }//if (comboBox3.Text == "TCP")
                     else if (NetType.Text == "UDP")
                     {
+                        Peer.DataSource = udp.GetUDPPeer();
                         udp.StartUDP(LocalIPEndPoint);
-
-                        ReceThread = new Thread(ReceProcess)
-                        {
-                            IsBackground = true//后台线程，前台线程GG，它也GG
-                        };//线程处理程序为 ReceProcess
-                        ReceThread.Start();
-
-                        SocketIsOpen(true);
                     }//if (comboBox3.Text == "UDP")
                     else
                         Infotext.Text = "请选择模式";
@@ -873,13 +690,10 @@ namespace UpperApp
             {
                 if (NetType.Text == "TCP")
                 {
-                    SocketIsOpen(false);
                     try
                     {
                         //comboBox3.Text = "";
-                        tcp.socket.Close();
-                        if (thread.IsAlive)
-                            thread.Abort();
+                        tcp.StopMonitor();
                     }
                     catch (Exception ex)
                     {
@@ -889,19 +703,15 @@ namespace UpperApp
                 else if (NetType.Text == "UDP")
                 {
                     udp.CloseUDP();
-                    //关闭 线程
-                    ReceThread.Abort();
-
-                    SocketIsOpen(false);
-                    //comboBox3.Text = "";
                 }
 
             }//if (button9.Text == "停止监听")
         }
 
+
         private void SocketIsOpen(bool isOpen)
         {
-            if(isOpen)
+            if (isOpen)
             {
                 Infotext.Text = "开始监听";
                 btnListen.Text = "停止监听";
@@ -1021,7 +831,7 @@ namespace UpperApp
                     string Buf = "FR:" + FBBar.Value + ":" + RLBar.Value + ":OVER\r\n";
                     if (rbtnSerial.Checked && serialPort1.IsOpen)
                     {
-                        Encoding gb = Encoding.GetEncoding("gb2312");
+                        Encoding gb = encoding;
                         byte[] buffer = gb.GetBytes(Buf);
                         serialPort1.Write(buffer, 0, buffer.Length);
                         SetRS(buffer.Length, RecvOrSend.Send);
@@ -1041,13 +851,7 @@ namespace UpperApp
                                     Infotext.Text = "未选定端口";
                                 else
                                 {
-                                    byte[] buffer = Encoding.UTF8.GetBytes(Buf);
-                                    tcp.Send(ip, buffer);
-                                    SetRS(Buf.Length, RecvOrSend.Send);
-                                    if (ReDisp.Checked)
-                                    {
-                                        RecvBox.AppendText(Buf);
-                                    }
+                                    tcp.Send(ip, Buf);
                                 }
                             }
                             catch (Exception ex)
@@ -1063,8 +867,7 @@ namespace UpperApp
                         {
                             try
                             {
-                                UDPResult result = udp.UDP_Send(Buf, Peer.Text);
-                                SetInfoAfterUDPSend(result);
+                                udp.UDP_Send(Buf, Peer.Text);
                             }
                             catch (Exception ex)
                             {
@@ -1108,26 +911,9 @@ namespace UpperApp
             catch { }
         }
 
-        private void Peer_DropDown(object sender, EventArgs e)
-        {
-            if (btnListen.Text == "停止监听")
-            {
-                if (NetType.Text == "UDP")
-                {
-                    Peer.Items.Clear();
-                    Peer.Items.AddRange(udp.GetUDPPeer());
-                }
-                else if (NetType.Text == "TCP")
-                {
-                    Peer.Items.Clear();
-                    Peer.Items.AddRange(tcp.GetAllPeerIP());
-                }
-            }
-        }
-
         private void SaveData_CheckedChanged(object sender, EventArgs e)
         {
-            if(SaveData.Checked)
+            if (SaveData.Checked)
             {
                 DialogResult dr = openFileDialog1.ShowDialog();
                 if (dr == DialogResult.OK)
@@ -1137,7 +923,7 @@ namespace UpperApp
                 else
                     SaveData.CheckState = CheckState.Unchecked;
             }
-            else if(!SaveData.Checked)
+            else if (!SaveData.Checked)
             {
                 if (tf != null)
                 {
@@ -1149,11 +935,11 @@ namespace UpperApp
 
         private void Port_TextChanged(object sender, EventArgs e)
         {
-            MatchCollection mc = Regex.Matches(Port.Text,"[0-9]");
-            int num=0;
+            MatchCollection mc = Regex.Matches(Port.Text, "[0-9]");
+            int num = 0;
             foreach (Match s in mc)
             {
-                num=num*10+int.Parse(s.Value);
+                num = num * 10 + int.Parse(s.Value);
             }
             if (num != 0 && num < 65536)
                 Port.Text = num.ToString();
@@ -1174,7 +960,7 @@ namespace UpperApp
         }
 
         #region 记忆功能相关函数
-            #if File
+#if File
                 private void UpperApp_FormClosing(object sender, FormClosingEventArgs e)
                 {
                     StreamWriter sw = new StreamWriter("Buffer.log", false);
@@ -1187,21 +973,21 @@ namespace UpperApp
                     }
                     sw.Close();
                 }
-            #else
-                private void UpperApp_FormClosing(object sender, FormClosingEventArgs e)
-                {
-                    RegistryKey hkSoftWare = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\JXUST", true);
-                    RegistryKey regkey = hkSoftWare.CreateSubKey("Buf", true);
-                    for (int i = 0; i < 8; i++)
-                    {
-                        regkey.SetValue("UH" + (i + 1), Convert.ToInt32(checks[i].Checked).ToString(), RegistryValueKind.String);
-                        regkey.SetValue("UB" + (i + 1), texts[i].Text, RegistryValueKind.String);
-                    }
-                    regkey.SetValue("Port", Port.Text, RegistryValueKind.String);
-                    regkey.Close();
-                    hkSoftWare.Close();
-                }
-            #endif
+#else
+        private void UpperApp_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            RegistryKey hkSoftWare = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\JXUST", true);
+            RegistryKey regkey = hkSoftWare.CreateSubKey("Buf", true);
+            for (int i = 0; i < 8; i++)
+            {
+                regkey.SetValue("UH" + (i + 1), Convert.ToInt32(checks[i].Checked).ToString(), RegistryValueKind.String);
+                regkey.SetValue("UB" + (i + 1), texts[i].Text, RegistryValueKind.String);
+            }
+            regkey.SetValue("Port", Port.Text, RegistryValueKind.String);
+            regkey.Close();
+            hkSoftWare.Close();
+        }
+#endif
         #endregion
 
         private void LabDist_TextChanged(object sender, EventArgs e)
@@ -1332,6 +1118,27 @@ namespace UpperApp
 
             if (Math.Abs(Top) <= 10)//往上靠
                 Location = new Point(Left, 0);
+        }
+
+        private void BthDeviceScanBtn_Click(object sender, EventArgs e)
+        {
+            if (BthDeviceScanBtn.Enabled)
+            {
+                BthDeviceScanBtn.Enabled = false;
+                BthDeviceScanBtn.Text = "扫描中";
+                BluetoothClient client = new();
+                Task.Run(() =>
+                {
+                    foreach (BluetoothDeviceInfo d in client.DiscoverDevices())
+                    {
+                        bth.BthDevices.TryAdd(d.DeviceName, d);
+                        if (!BthDeviceList.Items.Contains(d.DeviceName))
+                            BthDeviceList.Items.Add(d.DeviceName);
+                    }
+                    BthDeviceScanBtn.Enabled = true;
+                    BthDeviceScanBtn.Text = "扫描蓝牙";
+                });
+            }
         }
     }//public partial class Form1 : Form
 }//namespace WindowsFormsApp1

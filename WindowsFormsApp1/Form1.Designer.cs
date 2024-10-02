@@ -22,7 +22,7 @@ namespace UpperApp
             base.Dispose(disposing);
         }
         private const string proname = "小车上位机";
-        private const string prover = "V5.0";
+        private const string prover = "V6.0";
 
         #region Windows 窗体设计器生成的代码
 

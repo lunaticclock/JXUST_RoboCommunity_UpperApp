@@ -2,7 +2,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.11.35312.102
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UpperApp", "WindowsFormsApp1\UpperApp.csproj", "{1DBB0252-14C8-4DBE-BF58-7827F873AB90}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UpperApp", "UpperApp\UpperApp.csproj", "{1DBB0252-14C8-4DBE-BF58-7827F873AB90}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

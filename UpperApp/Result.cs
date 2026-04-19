@@ -4,6 +4,7 @@ namespace UpperApp
 {
     class Result
     {
+
         public enum ResStatus
         {
             Success,
@@ -30,6 +31,7 @@ namespace UpperApp
         public string RemoteIP { get; set; }
         public string IPPort { get; set; }
         public string NewPeer { get; set; }
+        public ChannelType Channel { get; set; } = ChannelType.Unknown;
         public Result(){}
 
         public Result(NETStatus status, string Mes)

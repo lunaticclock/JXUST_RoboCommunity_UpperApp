@@ -3,72 +3,64 @@ using System.ComponentModel;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
-using Windows.UI.StartScreen;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace UpperApp
 {
-    class UDPManager
+    class UDPManager : BaseCommunicationManager, IAsyncDisposable
     {
-        private UdpClient UdpClientSend = null;
-        private UdpClient UdpClientReceive = null;
-        IPEndPoint remoteIpAndPort = new IPEndPoint(IPAddress.Any, 0);
-        string receiveFromOld = "";
+        private UdpClient _udpClient;
+        private readonly SynchronizationContext _syncContext;
         private BindingList<string> UDPlist = new();
-        private Encoding encoding = null;
-        public event Action<Result> StatusChanged;
+        private string _lastRemoteEndPoint = "";  // 用于判断是否新端点
 
-        public UDPManager()
+        public UDPManager() : base(ChannelType.UDP)
         {
-            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-            encoding = Encoding.GetEncoding("GB2312");
+            _syncContext = SynchronizationContext.Current;
         }
 
-        public void UDP_Send(string Buf, string peer)
+        public void UDP_Send(string buf, string peer)
         {
-            Result result = new Result();
-            //远端 IP                
-            int RemotePort;      //远端 Port
-            IPEndPoint RemoteIPEndPoint; //远端 IP&Port
-            int num = peer.IndexOf(':');
-            result.NetStatus = Result.NETStatus.SendMessage;
-            if (IPAddress.TryParse(peer.Substring(0, num), out IPAddress RemoteIP) == false)//远端 IP
+            if (_udpClient == null)
             {
-                result.status = Result.ResStatus.Error;
-                result.Message = "远端IP错误!";
-                OnStatusChanged(result);
+                OnStatusChanged(new Result(Result.NETStatus.SendMessage, "UDP未启动", 0, "") { status = Result.ResStatus.Error });
                 return;
             }
 
-            RemotePort = int.Parse(peer.Remove(0, num + 1));//远端 Port
-            RemoteIPEndPoint = new IPEndPoint(RemoteIP, RemotePort);//远端 IP和Port
-            //Get Data
-            byte[] sendBytes = encoding.GetBytes(Buf);
-            int cnt = sendBytes.Length;
-
-            if (0 == cnt)
+            // 解析 peer 字符串 "IP:Port"
+            int colonIndex = peer.IndexOf(':');
+            if (colonIndex <= 0 || !IPAddress.TryParse(peer.AsSpan(0, colonIndex), out IPAddress remoteIP))
             {
-                result.status = Result.ResStatus.Alert;
-                result.Message = "未发出信息!";
-                OnStatusChanged(result);
+                OnStatusChanged(new Result(Result.NETStatus.SendMessage, "远端IP错误!", 0, "") { status = Result.ResStatus.Error });
+                return;
+            }
+            if (!int.TryParse(peer.Substring(colonIndex + 1), out int remotePort))
+            {
+                OnStatusChanged(new Result(Result.NETStatus.SendMessage, "远端端口错误!", 0, "") { status = Result.ResStatus.Error });
+                return;
+            }
+
+            byte[] sendBytes = encoding.GetBytes(buf);
+            if (sendBytes.Length == 0)
+            {
+                OnStatusChanged(new Result(Result.NETStatus.SendMessage, "未发出信息!", 0, "") { status = Result.ResStatus.Alert });
                 return;
             }
 
             try
             {
-                //Send
-                UdpClientSend.Send(sendBytes, cnt, RemoteIPEndPoint);
+                _udpClient.Send(sendBytes, sendBytes.Length, new IPEndPoint(remoteIP, remotePort));
+                var result = new Result(Result.NETStatus.SendMessage, buf, sendBytes.Length, peer);
+                result.status = Result.ResStatus.SetNum;
+                OnStatusChanged(result);
             }
-            catch(SocketException)
+            catch (SocketException)
             {
-                if(UDPlist.Contains(RemoteIPEndPoint.ToString()))
-                    UDPlist.Remove(RemoteIPEndPoint.ToString());
+                // 发送失败，从 UI 列表中移除该端点
+                PostToUI(() => UDPlist.Remove(peer));
                 OnStatusChanged(new Result(Result.NETStatus.RemoteStop, "远端关闭"));
             }
-
-            result.status = Result.ResStatus.SetNum;
-            result.Num = cnt;
-            result.Message = Buf;
-            OnStatusChanged(result);
         }
 
         public BindingList<string> GetUDPPeer()
@@ -76,70 +68,85 @@ namespace UpperApp
             return UDPlist;
         }
 
-        public void CloseUDP()
+        public override void StopMonitor()
         {
-            //UDPMonitor.CancelAsync();
-            UdpClientSend.Close();
-            UdpClientReceive.Close();
+            _cts.Cancel();
+            _udpClient?.Close();
+            _udpClient = null;
+            _isMonitoring = false;
             OnStatusChanged(new Result(Result.NETStatus.MonitorStop, "停止监听"));
+            // 重置 CancellationTokenSource 以便重启
+            _cts.Dispose();
+            _cts = new CancellationTokenSource();
         }
 
-        public void StartUDP(IPEndPoint LocalIPEndPoint)
+        public override void StartMonitor(IPEndPoint localEndPoint)
         {
+            if (_isMonitoring) 
+                StopMonitor();
             UDPlist.Clear();
-            //Bind
-            UdpClientSend = new UdpClient(LocalIPEndPoint.Port);//Bind Send UDP = Local some IP&Port
-            UdpClientReceive = new UdpClient(LocalIPEndPoint);//Bind Receive UDP = Local IP&Port
-            UdpClientReceive.BeginReceive(new AsyncCallback(ReceiveCallback), null);
+            _udpClient = new UdpClient(localEndPoint);
+            _isMonitoring = true;
+            _ = StartReceiveLoopAsync(_cts.Token);
             OnStatusChanged(new Result(Result.NETStatus.MonitorStart, "监听开始"));
         }
 
-        private void ReceiveCallback(IAsyncResult ar)
+        private async Task StartReceiveLoopAsync(CancellationToken token)
         {
             try
             {
-                byte[] ReceiveBytes = UdpClientReceive.EndReceive(ar, ref remoteIpAndPort);
-                int cnt = ReceiveBytes.Length;
-                if (encoding == null)
+                while (!token.IsCancellationRequested)
                 {
-                    encoding = Encoding.GetEncoding("GB2312");
+                    UdpReceiveResult result = await _udpClient!.ReceiveAsync(token);
+                    ProcessReceivedData(result.Buffer, result.RemoteEndPoint.ToString());
                 }
-                string Message = encoding.GetString(ReceiveBytes, 0, cnt) + "\r\n";
-                Result result = new Result(Result.NETStatus.ReciveMessage, Message, cnt, remoteIpAndPort.ToString());
-                result.IPPort = remoteIpAndPort.ToString();
-                if (!UDPlist.Contains(result.IPPort))
-                {
-                    UDPlist.Add(result.IPPort);
-                }
-                if (!result.IPPort.Equals(receiveFromOld))
-                {
-                    result.NewPeer = string.Format("\r\nfrom {0}:\r\n", result.IPPort);
-                }
-                result.Num = cnt;
-                receiveFromOld = result.IPPort;
-                OnStatusChanged(result);
-                // 继续监听
-                UdpClientReceive.BeginReceive(new AsyncCallback(ReceiveCallback), null);
             }
-            catch (ObjectDisposedException)
-            {
-                // Socket 已关闭，忽略此异常
-            }
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException) { }
             catch (Exception ex)
             {
                 OnStatusChanged(new Result(Result.NETStatus.ExceptionStop, ex.Message));
-                //Console.WriteLine($"Exception: {ex.Message}");
+            }
+            finally
+            {
+                _isMonitoring = false;
             }
         }
 
-        protected virtual void OnStatusChanged(Result status)
+        private void ProcessReceivedData(byte[] data, string remoteEndPoint)
         {
-            StatusChanged?.Invoke(status);
+            string message = encoding.GetString(data, 0, data.Length) + "\r\n";
+            var result = new Result(Result.NETStatus.ReciveMessage, message, data.Length, remoteEndPoint);
+            result.IPPort = remoteEndPoint;
+
+            // UI 列表操作需要同步到 UI 线程
+            PostToUI(() =>
+            {
+                if (!UDPlist.Contains(remoteEndPoint))
+                    UDPlist.Add(remoteEndPoint);
+            });
+
+            if (!remoteEndPoint.Equals(_lastRemoteEndPoint))
+            {
+                result.NewPeer = $"\r\nfrom {remoteEndPoint}:\r\n";
+                _lastRemoteEndPoint = remoteEndPoint;
+            }
+
+            OnStatusChanged(result);
         }
 
-        private void Monitor_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+        private void PostToUI(Action action)
         {
-            OnStatusChanged(new Result(Result.NETStatus.MonitorStop, "监听停止"));
+            if (_syncContext == null)
+                action();
+            else
+                _syncContext.Post(_ => action(), null);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            StopMonitor();
+            await Task.CompletedTask;
         }
     }
 }

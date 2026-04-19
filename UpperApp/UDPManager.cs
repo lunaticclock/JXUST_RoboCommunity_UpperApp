@@ -14,6 +14,7 @@ namespace UpperApp
         private readonly SynchronizationContext _syncContext;
         private BindingList<string> UDPlist = new();
         private string _lastRemoteEndPoint = "";  // 用于判断是否新端点
+        private string _lastSendRemoteEndPoint = "";  // 用于判断远端是否断联，通过发送后接收端报错来判断
 
         public UDPManager() : base(ChannelType.UDP)
         {
@@ -52,6 +53,7 @@ namespace UpperApp
             {
                 _udpClient.Send(sendBytes, sendBytes.Length, new IPEndPoint(remoteIP, remotePort));
                 var result = new Result(Result.NETStatus.SendMessage, buf, sendBytes.Length, peer);
+                _lastSendRemoteEndPoint = peer;
                 result.status = Result.ResStatus.SetNum;
                 OnStatusChanged(result);
             }
@@ -97,8 +99,20 @@ namespace UpperApp
             {
                 while (!token.IsCancellationRequested)
                 {
-                    UdpReceiveResult result = await _udpClient!.ReceiveAsync(token);
-                    ProcessReceivedData(result.Buffer, result.RemoteEndPoint.ToString());
+                    try
+                    {
+                        UdpReceiveResult result = await _udpClient!.ReceiveAsync(token);
+                        ProcessReceivedData(result.Buffer, result.RemoteEndPoint.ToString());
+                    }
+                    catch (SocketException ex)
+                    {
+                        if (ex.SocketErrorCode == SocketError.ConnectionReset)
+                        {
+                            OnStatusChanged(new Result(Result.NETStatus.ExceptionStop, ex.Message, 0, _lastSendRemoteEndPoint));
+                            UDPlist.Remove(_lastSendRemoteEndPoint);
+                            _lastSendRemoteEndPoint = "";
+                        }
+                    }
                 }
             }
             catch (OperationCanceledException) { }

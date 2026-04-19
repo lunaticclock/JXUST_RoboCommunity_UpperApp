@@ -152,8 +152,12 @@ namespace UpperApp
                     else if (status.Channel == ChannelType.Bluetooth)
                         MessageBox.Show(this, status.Message, "蓝牙错误");
                     else if (status.Channel == ChannelType.TCP || status.Channel == ChannelType.UDP)
-                        if (!status.Message.Contains("你的主机中的软件中止了一个已建立的连接"))
+                        if (string.IsNullOrEmpty(status.RemoteIP))
                             MessageBox.Show(this, status.Message, "网络错误");
+                        else
+                        {
+                            MessageBox.Show(this, status.Message, "远端关闭");
+                        }
                     break;
                 case Result.NETStatus.MonitorStart:
                 case Result.NETStatus.MonitorStop:

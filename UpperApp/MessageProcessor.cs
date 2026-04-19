@@ -5,7 +5,7 @@ using System.Text;
 
 namespace UpperApp
 {
-    [SupportedOSPlatform("windows10.0.17763.0")]
+    [SupportedOSPlatform("windows10.0.19041.0")]
     internal class MessageProcessor
     {
         // 主窗体提供的依赖

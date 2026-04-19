@@ -30,12 +30,12 @@ namespace UpperApp
         Send = 1
     }
 
-    [SupportedOSPlatform("windows10.0.17763.0")]
+    [SupportedOSPlatform("windows10.0.19041.0")]
     public static class Utils
     {
         public static string getTime()
         {
-            return "[" + DateTime.Now.ToLongTimeString() + "]:\r\n";
+            return "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff") + "]";
         }
 
         // ==================== 字符串与十六进制转换 ====================

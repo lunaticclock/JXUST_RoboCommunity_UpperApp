@@ -12,8 +12,8 @@ namespace UpperApp
         private readonly Action<int, RecvOrSend> _setRs;
         private readonly Func<bool> _isCharMode;
         private readonly Func<bool> _isHexMode;
+        private readonly Func<bool> _isReDisp;
         private readonly Action<string> _appendToRecvBox;
-        private readonly Action<string> _appendHexToRecvBox;  // Str2Hexstr 的包装
         private readonly Action<string> _writeLog;
         private readonly Action<string> _setAngDisp;
         private readonly Func<bool> _isAngDirDispEnabled;
@@ -23,8 +23,8 @@ namespace UpperApp
             Action<int, RecvOrSend> setRs,
             Func<bool> isCharMode,
             Func<bool> isHexMode,
+            Func<bool> isReDisp,
             Action<string> appendToRecvBox,
-            Action<string> appendHexToRecvBox,
             Action<string> writeLog,
             Action<string> setAngDisp,
             Func<bool> isAngDirDispEnabled,
@@ -33,8 +33,8 @@ namespace UpperApp
             _setRs = setRs;
             _isCharMode = isCharMode;
             _isHexMode = isHexMode;
+            _isReDisp = isReDisp;
             _appendToRecvBox = appendToRecvBox;
-            _appendHexToRecvBox = appendHexToRecvBox;
             _writeLog = writeLog;
             _setAngDisp = setAngDisp;
             _isAngDirDispEnabled = isAngDirDispEnabled;
@@ -58,14 +58,15 @@ namespace UpperApp
             if (_isCharMode())
             {
                 // 字符模式直接追加消息内容
-                _appendToRecvBox(status.Message);
+                _appendToRecvBox(Utils.getTime() + "from:" + status.RemoteIP + ": " + "\r\n" + status.Message + "\r\n");
                 // 写入日志（带时间戳）
-                _writeLog(Utils.getTime() + status.Message);
+                _writeLog(Utils.getTime() + "from:" + status.RemoteIP + ": " + "\r\n" + status.Message + "\r\n");
             }
             else if (_isHexMode())
             {
                 // 十六进制模式调用转换显示
-                _appendHexToRecvBox(status.Message);
+                _appendToRecvBox(Utils.getTime() + "from:" + status.RemoteIP + ": " + "\r\n" + Utils.StringToHexString(status.Message) + "\r\n");
+                _writeLog(Utils.getTime() + "from:" + status.RemoteIP + ": " + "\r\n" + Utils.StringToHexString(status.Message) + "\r\n");
             }
         }
 
@@ -76,7 +77,8 @@ namespace UpperApp
             if (status.status == Result.ResStatus.SetNum)
             {
                 // 发送成功，可选是否回显
-                // if (ReDisp.Checked) _appendToRecvBox(status.Message);
+                if (_isReDisp()) _appendToRecvBox(Utils.getTime() + "to:" + status.RemoteIP + ": " + "\r\n" + status.Message + "\r\n");
+                _writeLog(Utils.getTime() + "to:" + status.RemoteIP + ": " + "\r\n" + status.Message + "\r\n");
                 _setRs(status.Num, RecvOrSend.Send);
             }
             else if (status.status == Result.ResStatus.Error)

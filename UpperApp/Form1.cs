@@ -2,7 +2,9 @@
 #define File
 
 using InTheHand.Net.Bluetooth;
+using InTheHand.Net.Sockets;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
@@ -20,7 +22,7 @@ using TextBox = System.Windows.Forms.TextBox;
 
 namespace UpperApp
 {
-    [SupportedOSPlatform("windows10.0.17763.0")]
+    [SupportedOSPlatform("windows10.0.19041.0")]
     public partial class UpperApp : Form
     {
         [DefaultValue(0)]
@@ -87,10 +89,9 @@ namespace UpperApp
 
             string[] Com = { "9600", "19200", "38400", "115200", "256000", "460800", "512000", "921600" };
             Baud.Items.AddRange(Com);
+            Baud.SelectedIndex = 3;
 
-            string[] NetType = new string[2];
-            NetType[0] = "TCP";
-            NetType[1] = "UDP";
+            string[] NetType = ["TCP", "UDP"];
             this.NetType.Items.AddRange(NetType);
             this.NetType.SelectedIndex = 0;
             Tim.Text = "1000";
@@ -101,8 +102,8 @@ namespace UpperApp
                 setRs: SetRS,
                 isCharMode: () => rbtnChar.Checked,
                 isHexMode: () => rbtnHex.Checked,
+                isReDisp: () => ReDisp.Checked,
                 appendToRecvBox: (text) => RecvBox.AppendText(text),
-                appendHexToRecvBox: Str2Hexstr,   // 直接传入方法
                 writeLog: (log) => tf?.WriteLine(log),
                 setAngDisp: SetAngDisp,
                 isAngDirDispEnabled: () => AngDirDisp.Checked,
@@ -112,11 +113,11 @@ namespace UpperApp
             ser.StatusChanged += UnifiedStatusChanged;
 
 #if File
-                if (!File.Exists("Buffer.log"))
-                {
-                    FileStream fs = new FileStream("Buffer.log", FileMode.OpenOrCreate);
-                    fs.Close();
-                }
+            if (!File.Exists("Buffer.log"))
+            {
+                FileStream fs = new FileStream("Buffer.log", FileMode.OpenOrCreate);
+                fs.Close();
+            }
 #endif
 
             filerd();
@@ -183,7 +184,7 @@ namespace UpperApp
                     else if (status.Channel == ChannelType.Bluetooth)
                     {
                         Infotext.Text = "连接断开!";
-                        BthListenBtn.Text = "连接断开";
+                        BthConnectBtn.Text = "连接";
                         // 可选：刷新蓝牙客户端列表
                         ChoseSlaveBthList.DataSource = null;
                         ChoseSlaveBthList.DataSource = bth.BthClients.connectionKeys;
@@ -337,7 +338,6 @@ namespace UpperApp
 
         private void UpperApp_Load(object sender, EventArgs e)
         {
-            //EventHandler<BluetoothWin32AuthenticationEventArgs> handler = new EventHandler<BluetoothWin32AuthenticationEventArgs>(HandleRequests);
             FBtext.DataBindings.Add("Text", FBBar, "Value", false, DataSourceUpdateMode.OnPropertyChanged);
             RLtext.DataBindings.Add("Text", RLBar, "Value", false, DataSourceUpdateMode.OnPropertyChanged);
 
@@ -352,30 +352,13 @@ namespace UpperApp
             }
         }
 
-        //将字符串变为16进制字符
-        private void Str2Hexstr(string str)
-        {
-            string hex = Utils.StringToHexString(str);
-            RecvBox.AppendText(" " + hex + "\r\n");
-            tf?.WriteLine(Utils.getTime() + " " + hex);
-        }
-
-        //将字符串转换成16进制代码
-        private string Str2Hex(string s)
-        {
-            string result = Utils.HexStringToString(s);
-            if (result == null)
-                MessageBox.Show(this, "请将每字节间以空格分开");
-            return result;
-        }
-
         //发送数据  串口TCP和UDP
         private void StrSend(string Buf)
         {
             if (rbtnSerial.Checked)
             {
                 ser.Send(Buf);
-            }//if (rbtnSerial.Checked)
+            }
             else if (rbtnNET.Checked)
             {
                 if (network != null && network.IsMonitoring)
@@ -387,7 +370,7 @@ namespace UpperApp
                             Infotext.Text = "未选定端口";
                         else
                         {
-                            network.Send(ip, Buf);
+                            network.Send(Buf, ip);
                         }
                     }
                     catch (Exception ex)
@@ -452,7 +435,7 @@ namespace UpperApp
             }
             else
             {
-                bth.SetClient(bth.BthDevices[BthDeviceList.SelectedText]);
+                bth.SetClient(bth.BthDevices[BthDeviceList.SelectedItem.ToString()]);
                 BthConnectBtn.Text = "断开";
             }
         }
@@ -474,25 +457,25 @@ namespace UpperApp
                 var localEndpoint = new IPEndPoint(ip, port);
                 network = NetType.Text == "TCP" ? new TcpManagerAdapter() : new UdpManagerAdapter();
                 network.StatusChanged += UnifiedStatusChanged;
-                try 
+                try
                 {
                     network.StartMonitor(localEndpoint);
                     Peer.DataSource = network.GetPeerDataSource();
                 }
-                catch (Exception ex) 
-                { 
-                    MessageBox.Show(this, ex.Message, "错误"); 
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, ex.Message, "错误");
                 }
             }//if (button9.Text == "开始监听")
             else if (btnListen.Text == "停止监听")
             {
-                try 
-                { 
+                try
+                {
                     network.StopMonitor();
                 }
-                catch (Exception ex) 
-                { 
-                    MessageBox.Show(this, ex.Message, "错误"); 
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, ex.Message, "错误");
                 }
 
             }//if (button9.Text == "停止监听")
@@ -707,9 +690,9 @@ namespace UpperApp
         {
             // 并行释放多个管理器，提高效率
             await Task.WhenAll(
-                network.DisposeAsync().AsTask(),
-                bth.DisposeAsync().AsTask(),
-                ser.DisposeAsync().AsTask()
+                network?.DisposeAsync().AsTask(),
+                bth?.DisposeAsync().AsTask(),
+                ser?.DisposeAsync().AsTask()
             ).ConfigureAwait(false);
         }
 
@@ -744,8 +727,12 @@ namespace UpperApp
             string sendStr;
             if (checks[i].Checked)
             {
-                sendStr = Str2Hex(text);
-                if (sendStr == null) return; // 转换失败，不发送
+                sendStr = Utils.HexStringToString(text);
+                if (sendStr == null)
+                {
+                    MessageBox.Show(this, "请将每字节间以空格分开");
+                    return; // 转换失败，不发送
+                }
             }
             else
             {
@@ -834,16 +821,27 @@ namespace UpperApp
             if (!BthDeviceScanBtn.Enabled) return;
             BthDeviceScanBtn.Enabled = false;
             BthDeviceScanBtn.Text = "扫描中";
-            var devices = await bth.DiscoverDevicesAsync();
-            if (this.IsDisposed) return;
-            foreach (var d in devices)
+            try
             {
-                bth.BthDevices.TryAdd(d.DeviceName, d);
-                if (!BthDeviceList.Items.Contains(d.DeviceName))
-                    BthDeviceList.Items.Add(d.DeviceName);
+                List<BluetoothDeviceInfo> devices = await bth.DiscoverDevicesAsync();
+                BthDeviceList.Items.Clear();
+                foreach (var device in devices)
+                {
+                    bth.BthDevices.TryAdd(device.DeviceName, device);
+                    if (!BthDeviceList.Items.Contains(device.DeviceName))
+                        BthDeviceList.Items.Add(device.DeviceName);
+                }
+                BthRecvBox.AppendText($"扫描完成，发现 {devices.Count} 个设备。\r\n");
             }
-            BthDeviceScanBtn.Enabled = true;
-            BthDeviceScanBtn.Text = "扫描蓝牙";
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, $"扫描失败: {ex.Message}");
+            }
+            finally
+            {
+                BthDeviceScanBtn.Enabled = true;
+                BthDeviceScanBtn.Text = "扫描蓝牙";
+            }
         }
     }//public partial class Form1 : Form
 }//namespace WindowsFormsApp1

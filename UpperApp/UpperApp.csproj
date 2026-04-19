@@ -29,6 +29,7 @@
     <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
     <TrimmerRemoveSymbols>true</TrimmerRemoveSymbols>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <ForceDesignerDpiUnaware>true</ForceDesignerDpiUnaware>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <WarningLevel>3</WarningLevel>

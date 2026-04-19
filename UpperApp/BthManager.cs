@@ -9,10 +9,12 @@ using System.Runtime.Versioning;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Windows.Devices.Bluetooth;
+using Windows.Devices.Enumeration;
 
 namespace UpperApp
 {
-    [SupportedOSPlatform("windows10.0.17763.0")]
+    [SupportedOSPlatform("windows10.0.19041.0")]
     class BthManager : BaseCommunicationManager, IAsyncDisposable
     {
         public BluetoothRadio br { get; private set; }
@@ -49,7 +51,7 @@ namespace UpperApp
             {
                 while (!token.IsCancellationRequested)
                 {
-                    var client = await Task.Run(() => _listener!.AcceptBluetoothClient(), token);
+                    BluetoothClient client = await Task.Run(() => _listener!.AcceptBluetoothClient(), token);
                     string deviceName = client.RemoteMachineName ?? "unknown";
                     BthClients.Add(deviceName, client);
                     OnStatusChanged(new Result(Result.NETStatus.NewRemote, "Got a request!\r\n"));
@@ -58,12 +60,13 @@ namespace UpperApp
                     try
                     {
                         byte[] welcome = Encoding.UTF8.GetBytes("Hello from service!\r\n");
-                        client.GetStream().Write(welcome, 0, welcome.Length);
+                        await client.GetStream().WriteAsync(welcome, 0, welcome.Length);
+                        await client.GetStream().FlushAsync();
                     }
                     catch { /* 忽略发送失败 */ }
 
                     // 启动接收循环
-                    _ = Task.Run(() => ReceiveLoopAsync(client, token), token);
+                    _ = ReceiveLoopAsync(client, token);
                 }
             }
             catch (OperationCanceledException) { }
@@ -129,7 +132,7 @@ namespace UpperApp
         }
 
         // 发送字符串（兼容原方法，支持指定客户端或使用 ManualClient）
-        public void StrSend(string Buf, BluetoothClient client = null)
+        public async void StrSend(string Buf, BluetoothClient client = null)
         {
             var target = client ?? _manualClient;
             if (target == null || !target.Connected)
@@ -141,7 +144,8 @@ namespace UpperApp
             try
             {
                 byte[] buffer = Encoding.UTF8.GetBytes(Buf);
-                target.GetStream().Write(buffer, 0, buffer.Length);
+                await target.GetStream().WriteAsync(buffer, 0, buffer.Length);
+                await target.GetStream().FlushAsync();
                 OnStatusChanged(new Result(Result.NETStatus.SendMessage, Buf, buffer.Length));
             }
             catch (Exception ex)

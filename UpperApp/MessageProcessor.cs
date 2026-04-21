@@ -18,6 +18,9 @@ namespace UpperApp
         private readonly Action<string> _setAngDisp;
         private readonly Func<bool> _isAngDirDispEnabled;
         private readonly Action<string> _onNewPeer;          // 可选，用于处理新对端标识
+        private const string FromPrefix = "from:";
+        private const string ToPrefix = "to:";
+        private const string NewLine = "\r\n";
 
         public MessageProcessor(
             Action<int, RecvOrSend> setRs,
@@ -54,19 +57,16 @@ namespace UpperApp
             if (!string.IsNullOrWhiteSpace(status.NewPeer) && _onNewPeer != null)
                 _onNewPeer(status.NewPeer);
 
-            // 4. 显示消息（字符/十六进制）
+            string remote = status.RemoteIP ?? "BlueTooth";
+            string prefix = $"{FromPrefix}{remote}: {NewLine}";
+
             if (_isCharMode())
             {
-                // 字符模式直接追加消息内容
-                _appendToRecvBox(Utils.getTime() + "from:" + status.RemoteIP + ": " + "\r\n" + status.Message + "\r\n");
-                // 写入日志（带时间戳）
-                _writeLog(Utils.getTime() + "from:" + status.RemoteIP + ": " + "\r\n" + status.Message + "\r\n");
+                AppendAndLog(prefix, status.Message);
             }
             else if (_isHexMode())
             {
-                // 十六进制模式调用转换显示
-                _appendToRecvBox(Utils.getTime() + "from:" + status.RemoteIP + ": " + "\r\n" + Utils.StringToHexString(status.Message) + "\r\n");
-                _writeLog(Utils.getTime() + "from:" + status.RemoteIP + ": " + "\r\n" + Utils.StringToHexString(status.Message) + "\r\n");
+                AppendAndLog(prefix, status.Message, isHex: true);
             }
         }
 
@@ -76,9 +76,11 @@ namespace UpperApp
 
             if (status.status == Result.ResStatus.SetNum)
             {
-                // 发送成功，可选是否回显
-                if (_isReDisp()) _appendToRecvBox(Utils.getTime() + "to:" + status.RemoteIP + ": " + "\r\n" + status.Message + "\r\n");
-                _writeLog(Utils.getTime() + "to:" + status.RemoteIP + ": " + "\r\n" + status.Message + "\r\n");
+                string remote = status.RemoteIP ?? "BlueTooth";
+                string prefix = $"{ToPrefix}{remote}: {NewLine}";
+                if (_isReDisp()) AppendAndLog(prefix, status.Message);
+                else _writeLog($"{Utils.getTime()}{prefix}{status.Message}{NewLine}");
+
                 _setRs(status.Num, RecvOrSend.Send);
             }
             else if (status.status == Result.ResStatus.Error)
@@ -93,6 +95,15 @@ namespace UpperApp
             {
                 _appendToRecvBox($"异常: {status.Message}\r\n");
             }
+        }
+
+        private void AppendAndLog(string prefix, string content, bool isHex = false)
+        {
+            string time = Utils.getTime();
+            string displayContent = isHex ? Utils.StringToHexString(content) : content;
+            string formatted = $"{time}{prefix}{displayContent}{NewLine}";
+            _appendToRecvBox(formatted);
+            _writeLog(formatted);
         }
     }
 }

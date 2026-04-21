@@ -96,7 +96,7 @@ namespace UpperApp
             this.NetType.SelectedIndex = 0;
             Tim.Text = "1000";
             GetLocalIP();
-            ChoseSlaveBthList.DataSource = bth.BthClients.connectionKeys;
+            ChoseSlaveBthList.DataSource = bth.GetClients();
 
             _msgProcessor = new MessageProcessor(
                 setRs: SetRS,
@@ -107,7 +107,7 @@ namespace UpperApp
                 writeLog: (log) => tf?.WriteLine(log),
                 setAngDisp: SetAngDisp,
                 isAngDirDispEnabled: () => AngDirDisp.Checked,
-                onNewPeer: (newPeer) => { /* 可选：更新 UI 中的对端显示 */ }
+                onNewPeer: (newPeer) => { Peer.DataSource = network.GetPeerDataSource(); }
             );
             bth.StatusChanged += UnifiedStatusChanged;
             ser.StatusChanged += UnifiedStatusChanged;
@@ -169,13 +169,14 @@ namespace UpperApp
                     {
                         Infotext.Text = "连接成功！";
                         Peer.Text = status.Message;   // status.Message 为远程终结点
+                        Peer.DataSource = network.GetPeerDataSource();
                     }
                     else if (status.Channel == ChannelType.Bluetooth)
                     {
                         BthRecvBox.AppendText(status.Message);
                         // 可选：刷新蓝牙客户端列表
                         ChoseSlaveBthList.DataSource = null;
-                        ChoseSlaveBthList.DataSource = bth.BthClients.connectionKeys;
+                        ChoseSlaveBthList.DataSource = bth.GetClients();
                     }
                     break;
                 case Result.NETStatus.RemoteStop:
@@ -183,6 +184,7 @@ namespace UpperApp
                     if (status.Channel == ChannelType.TCP || status.Channel == ChannelType.UDP)
                     {
                         Peer.Text = "";
+                        Peer.DataSource = network.GetPeerDataSource();
                         Infotext.Text = status.Message;
                     }
                     else if (status.Channel == ChannelType.Bluetooth)
@@ -191,7 +193,7 @@ namespace UpperApp
                         BthConnectBtn.Text = "连接";
                         // 可选：刷新蓝牙客户端列表
                         ChoseSlaveBthList.DataSource = null;
-                        ChoseSlaveBthList.DataSource = bth.BthClients.connectionKeys;
+                        ChoseSlaveBthList.DataSource = bth.GetClients();
                     }
                     break;
                 case Result.NETStatus.ManualStop:
@@ -380,8 +382,6 @@ namespace UpperApp
                     catch (Exception ex)
                     {
                         MessageBox.Show(this, ex.Message, "error");
-                        network.Remove(Peer.Text);
-                        Peer.Text = "";
                     }
                 }
             }
@@ -418,9 +418,9 @@ namespace UpperApp
         private void BthSendBtn_Click(object sender, EventArgs e)
         {
             if (BthConnectBtn.Text == "断开")
-                bth.StrSend(BthSendBox.Text);
+                bth.Send(BthSendBox.Text);
             else if (!string.IsNullOrEmpty(ChoseSlaveBthList.Text))
-                bth.StrSend(BthSendBox.Text, bth.GetSlaveClient(ChoseSlaveBthList.Text));
+                bth.Send(BthSendBox.Text, ChoseSlaveBthList.Text);
             else
                 MessageBox.Show(this, "请连接设备", "warning");
         }
@@ -439,7 +439,7 @@ namespace UpperApp
             }
             else
             {
-                bth.SetClient(bth.BthDevices[BthDeviceList.SelectedItem.ToString()]);
+                bth.SetMaster(BthDeviceList.SelectedItem.ToString());
                 BthConnectBtn.Text = "断开";
             }
         }
@@ -589,8 +589,6 @@ namespace UpperApp
                         Rocker.Text = "摇杆开";
                         setV(50, 50);
                         MessageBox.Show(this, ex.Message, "error");
-                        network.Remove(Peer.Text);
-                        Peer.Text = "";
                     }
                     xs = RLBar.Value;
                     ys = FBBar.Value;
@@ -831,7 +829,6 @@ namespace UpperApp
                 BthDeviceList.Items.Clear();
                 foreach (var device in devices)
                 {
-                    bth.BthDevices.TryAdd(device.DeviceName, device);
                     if (!BthDeviceList.Items.Contains(device.DeviceName))
                         BthDeviceList.Items.Add(device.DeviceName);
                 }

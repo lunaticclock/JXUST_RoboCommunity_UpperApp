@@ -1,12 +1,14 @@
 ﻿using System;
 using System.IO.Ports;
+using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Windows.UI.StartScreen;
 
 namespace UpperApp
 {
-    internal class SerManager : BaseCommunicationManager, IAsyncDisposable
+    internal class SerManager : BaseCommunicationManager
     {
 
         private SerialPort _serialPort;
@@ -20,24 +22,18 @@ namespace UpperApp
         // 启动串口（打开并开始接收）
         public void StartMonitor(string portName, int baudRate, Parity parity = Parity.None, int dataBits = 8, StopBits stopBits = StopBits.One)
         {
-            if (_isMonitoring) StopMonitor();
+            StartCore();
 
             _serialPort = new SerialPort(portName, baudRate, parity, dataBits, stopBits)
             {
                 Encoding = encoding,
                 NewLine = "\r\n"
             };
-
             try
             {
                 _serialPort.Open();
-                _isMonitoring = true;
-                _cts = new CancellationTokenSource();
-
                 // 启动接收循环（异步）
                 _ = ReceiveLoopAsync(_cts.Token);
-
-                OnStatusChanged(new Result(Result.NETStatus.MonitorStart, $"串口已打开"));
                 PortName = portName;
                 BaudRate = baudRate;
             }
@@ -49,23 +45,14 @@ namespace UpperApp
             }
         }
 
-        public override void StopMonitor()
+        protected override void OnStopping()
         {
-            if (!_isMonitoring) return;
-
-            _cts?.Cancel();
-            _cts?.Dispose();
-            _cts = null;
-
             if (_serialPort != null && _serialPort.IsOpen)
             {
                 _serialPort.Close();
                 _serialPort.Dispose();
                 _serialPort = null;
             }
-
-            _isMonitoring = false;
-            OnStatusChanged(new Result(Result.NETStatus.MonitorStop, "串口已关闭"));
         }
 
         private async Task ReceiveLoopAsync(CancellationToken token)
@@ -95,7 +82,7 @@ namespace UpperApp
         }
 
         // 发送字符串
-        public void Send(string data)
+        public override void Send(string data, string target = null)
         {
             if (!_isMonitoring || _serialPort == null || !_serialPort.IsOpen)
             {
@@ -113,13 +100,6 @@ namespace UpperApp
             {
                 OnStatusChanged(new Result(Result.NETStatus.ExceptionStop, ex.Message));
             }
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            StopMonitor();
-            _cts?.Dispose();
-            await Task.CompletedTask;
         }
     }
 }

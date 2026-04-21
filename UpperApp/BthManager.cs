@@ -2,6 +2,7 @@
 using InTheHand.Net.Sockets;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
@@ -9,19 +10,17 @@ using System.Runtime.Versioning;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Windows.Devices.Bluetooth;
-using Windows.Devices.Enumeration;
 
 namespace UpperApp
 {
     [SupportedOSPlatform("windows10.0.19041.0")]
-    class BthManager : BaseCommunicationManager, IAsyncDisposable
+    class BthManager : BaseCommunicationManager
     {
         public BluetoothRadio br { get; private set; }
         private BluetoothListener _listener;
         private BluetoothClient _manualClient;
-        public readonly Dictionary<string, BluetoothDeviceInfo> BthDevices = new Dictionary<string, BluetoothDeviceInfo>();
-        public readonly BindingDic<BluetoothClient> BthClients = new();
+        private readonly Dictionary<string, BluetoothDeviceInfo> BthDevices = new Dictionary<string, BluetoothDeviceInfo>();
+        private readonly BindingDic<BluetoothClient> BthClients = new();
 
         private class StateObject
         {
@@ -35,14 +34,24 @@ namespace UpperApp
         }
 
         // 启动监听（兼容原方法）
-        public override void StartMonitor()
+        public void StartMonitor()
         {
-            if (_isMonitoring) StopMonitor();
+            StartCore();
             _listener = new BluetoothListener(BluetoothService.SerialPort);
             _listener.Start();
-            _isMonitoring = true;
             _ = Task.Run(() => AcceptLoopAsync(_cts.Token));
-            OnStatusChanged(new Result(Result.NETStatus.MonitorStart, "监听开始"));
+        }
+
+        protected override void OnStopping()
+        {
+            _listener?.Stop();
+            _listener = null;
+            // 关闭所有客户端连接
+            foreach (string key in BthClients.connectionKeys.ToArray())
+            {
+                BthClients.Remove(key)?.Close();
+            }
+            _manualClient?.Dispose();
         }
 
         private async Task AcceptLoopAsync(CancellationToken token)
@@ -111,31 +120,11 @@ namespace UpperApp
             }
         }
 
-        public override void StopMonitor()
-        {
-            _cts.Cancel();
-            _listener?.Stop();
-            _listener = null;
-            _isMonitoring = false;
-
-            OnStatusChanged(new Result(Result.NETStatus.MonitorStop, "停止监听"));
-
-            // 关闭所有客户端连接
-            foreach (string key in BthClients.connectionKeys.ToArray())
-            {
-                BthClients.Remove(key)?.Close();
-            }
-
-            // 重置 CancellationTokenSource 以便重启
-            _cts?.Dispose();
-            _cts = new CancellationTokenSource();
-        }
-
         // 发送字符串（兼容原方法，支持指定客户端或使用 ManualClient）
-        public async void StrSend(string Buf, BluetoothClient client = null)
+        public override async void Send(string data, string target = null)
         {
-            var target = client ?? _manualClient;
-            if (target == null || !target.Connected)
+            BluetoothClient client = target == null ? _manualClient : GetSlaveClient(target);
+            if (client == null || !client.Connected)
             {
                 OnStatusChanged(new Result(Result.NETStatus.RemoteStop, "连接断开", 0));
                 return;
@@ -143,10 +132,10 @@ namespace UpperApp
 
             try
             {
-                byte[] buffer = Encoding.UTF8.GetBytes(Buf);
-                await target.GetStream().WriteAsync(buffer, 0, buffer.Length);
-                await target.GetStream().FlushAsync();
-                OnStatusChanged(new Result(Result.NETStatus.SendMessage, Buf, buffer.Length));
+                byte[] buffer = Encoding.UTF8.GetBytes(data);
+                client.GetStream().Write(buffer, 0, buffer.Length);
+                client.GetStream().Flush();
+                OnStatusChanged(new Result(Result.NETStatus.SendMessage, data, buffer.Length));
             }
             catch (Exception ex)
             {
@@ -155,14 +144,17 @@ namespace UpperApp
         }
 
         // 设置主动连接的客户端（兼容原方法）
-        public void SetClient(BluetoothDeviceInfo bluetoothDevice)
+        public void SetMaster(string bluetoothDeviceName)
         {
             _manualClient?.Close();
             _manualClient = new BluetoothClient();
+            BluetoothDeviceInfo bluetoothDevice = BthDevices[bluetoothDeviceName];
             _manualClient.Connect(bluetoothDevice.DeviceAddress, BluetoothService.SerialPort);
             // 启动接收循环
             _ = Task.Run(() => ReceiveLoopAsync(_manualClient, _cts.Token));
         }
+
+        public BindingList<string> GetClients() => BthClients.connectionKeys;
 
         // 获取已连接的从设备（兼容原方法）
         public BluetoothClient GetSlaveClient(string name)
@@ -184,16 +176,14 @@ namespace UpperApp
             {
                 using (var cli = new BluetoothClient())
                 {
-                    return cli.DiscoverDevices().ToList();
+                    List<BluetoothDeviceInfo> devices = cli.DiscoverDevices().ToList();
+                    foreach (var device in devices)
+                    {
+                        BthDevices.TryAdd(device.DeviceName, device);
+                    }
+                    return devices;
                 }
             });
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            StopMonitor();
-            _manualClient?.Dispose();
-            await Task.CompletedTask;
         }
     }
 }

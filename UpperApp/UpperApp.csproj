@@ -3,7 +3,7 @@
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <OutputType>WinExe</OutputType>
     <RootNamespace>UpperApp</RootNamespace>
-    <AssemblyName>小车上位机V6.0</AssemblyName>
+    <AssemblyName>小车上位机V7.0</AssemblyName>
     <IsWebBootstrapper>false</IsWebBootstrapper>
     <PublishUrl>publish\</PublishUrl>
     <Install>true</Install>
@@ -18,7 +18,7 @@
     <ProductName>小车上位机</ProductName>
     <PublisherName>江理ClockSR</PublisherName>
     <ApplicationRevision>3</ApplicationRevision>
-    <ApplicationVersion>5.0.0.%2a</ApplicationVersion>
+    <ApplicationVersion>7.0.0.%2a</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <PublishWizardCompleted>true</PublishWizardCompleted>
     <BootstrapperEnabled>true</BootstrapperEnabled>

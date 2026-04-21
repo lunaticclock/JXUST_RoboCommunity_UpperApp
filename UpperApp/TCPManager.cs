@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -10,24 +11,30 @@ namespace UpperApp
 
 
 
-    class TCPManager : BaseCommunicationManager, IAsyncDisposable
+    class TCPManager : BaseCommunicationManager
     {
-        private bool _isStopping;  // 新增：标记正在主动停止，避免触发 RemoteStop
         private TcpListener _listener;
-        public readonly BindingDic<Socket> TCPdic = new();
+        private readonly BindingDic<Socket> TCPdic = new();
         public TCPManager() : base(ChannelType.TCP)
         {
         }
 
         // 新方法：直接传入本地终结点，内部创建 TcpListener
-        public override void StartMonitor(IPEndPoint localEndPoint)
+        public void StartMonitor(IPEndPoint localEndPoint)
         {
-            if (_isMonitoring)
-                StopMonitor();
+            StartCore();
             _listener = new TcpListener(localEndPoint);
             _ = StartAcceptLoopAsync(_cts.Token);
-            OnStatusChanged(new Result(Result.NETStatus.MonitorStart, "监听开始"));
-            _isMonitoring = true;
+        }
+
+        protected override void OnStopping()
+        {
+            _listener?.Stop();
+            _listener = null;
+            foreach (string key in TCPdic.connectionKeys.ToArray())
+            {
+                TCPdic.Remove(key)?.Close();
+            }
         }
 
         private async Task StartAcceptLoopAsync(CancellationToken token)
@@ -94,57 +101,27 @@ namespace UpperApp
             }
         }
 
-        public override void StopMonitor()
+        public override void Send(string data, string target = null)
         {
-            _isStopping = true;   // 设置标志，避免触发 RemoteStop
-            _cts.Cancel();
-            _cts.Dispose();
-            
-            _listener?.Stop();
-            _listener = null;
-            _isMonitoring = false;
-
-            OnStatusChanged(new Result(Result.NETStatus.MonitorStop, "停止监听"));
-
-            foreach (string key in TCPdic.connectionKeys.ToArray())
-            {
-                TCPdic.Remove(key)?.Close();
-            }
-            _cts = new CancellationTokenSource();
-            _isStopping = false;
-        }
-
-        public void Send(string ip, string Buf)
-        {
-            if (TCPdic.TryGet(ip, out Socket socket))
+            if (TCPdic.TryGet(target, out Socket socket))
             {
                 try
                 {
-                    byte[] buffer = encoding.GetBytes(Buf);
+                    byte[] buffer = encoding.GetBytes(data);
                     socket.Send(buffer);
-                    Result rs = new Result(Result.NETStatus.SendMessage, Buf, buffer.Length, ip);
+                    Result rs = new Result(Result.NETStatus.SendMessage, data, buffer.Length, target);
                     rs.status = Result.ResStatus.SetNum;
                     OnStatusChanged(rs);
                 }
                 catch (SocketException ex)
                 {
-                    OnStatusChanged(new Result(Result.NETStatus.ExceptionStop, $"[TCPManager] 发送到 {ip} 失败: {ex.Message}", 0, ip));
-                    TCPdic.Remove(ip)?.Close();
-                    OnStatusChanged(new Result(Result.NETStatus.RemoteStop, ip));
+                    OnStatusChanged(new Result(Result.NETStatus.ExceptionStop, $"[TCPManager] 发送到 {target} 失败: {ex.Message}", 0, target));
+                    TCPdic.Remove(target)?.Close();
+                    OnStatusChanged(new Result(Result.NETStatus.RemoteStop, target));
                 }
             }
         }
 
-        public void Remove(string peer)
-        {
-            TCPdic.Remove(peer)?.Close();
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            StopMonitor();
-            _cts?.Dispose();
-            await Task.CompletedTask;
-        }
+        public BindingList<string> GetPeer() => TCPdic.connectionKeys;
     }
 }

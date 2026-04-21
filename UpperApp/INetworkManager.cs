@@ -26,8 +26,6 @@ namespace UpperApp
         // 获取当前连接的对端标识（如 IP:Port）
         string CurrentPeer { get; }
 
-        void Remove(string peer);
-
         // 清理资源
         ValueTask DisposeAsync();
     }
@@ -55,17 +53,15 @@ namespace UpperApp
         public void Send(string data, string target = null)
         {
             if (string.IsNullOrEmpty(target)) throw new ArgumentException("Target required for TCP");
-            _tcpManager.Send(target, data);
+            _tcpManager.Send(data, target);
         }
 
-        public object GetPeerDataSource() => _tcpManager.TCPdic.connectionKeys;
+        public object GetPeerDataSource() => _tcpManager.GetPeer();
 
         public async ValueTask DisposeAsync()
         {
             await _tcpManager.DisposeAsync();
         }
-
-        public void Remove(string peer) => _tcpManager.Remove(peer);
     }
 
     internal class UdpManagerAdapter : INetworkManager
@@ -91,16 +87,14 @@ namespace UpperApp
         public void Send(string data, string target = null)
         {
             if (string.IsNullOrEmpty(target)) throw new ArgumentException("Target required for UDP");
-            _udpManager.UDP_Send(data, target);
+            _udpManager.Send(data, target);
         }
 
-        public object GetPeerDataSource() => _udpManager.GetUDPPeer();
+        public object GetPeerDataSource() => _udpManager.GetPeer();
 
         public async ValueTask DisposeAsync()
         {
             await _udpManager.DisposeAsync();
         }
-
-        public void Remove(string peer) => _udpManager.GetUDPPeer().Remove(peer);
     }
 }

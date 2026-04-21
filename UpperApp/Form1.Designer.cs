@@ -22,7 +22,7 @@ namespace UpperApp
             base.Dispose(disposing);
         }
         private const string proname = "小车上位机";
-        private const string prover = "V6.0";
+        private const string prover = "V7.0";
 
         #region Windows 窗体设计器生成的代码
 
@@ -180,7 +180,7 @@ namespace UpperApp
             Infotext.AutoSize = true;
             Infotext.Font = new System.Drawing.Font("华文新魏", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, 134);
             Infotext.ForeColor = System.Drawing.Color.Red;
-            Infotext.Location = new System.Drawing.Point(567, 25);
+            Infotext.Location = new System.Drawing.Point(189, 212);
             Infotext.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             Infotext.Name = "Infotext";
             Infotext.Size = new System.Drawing.Size(40, 17);
@@ -230,7 +230,7 @@ namespace UpperApp
             // btnAutoSend
             // 
             btnAutoSend.AutoSize = true;
-            btnAutoSend.Location = new System.Drawing.Point(569, 48);
+            btnAutoSend.Location = new System.Drawing.Point(569, 24);
             btnAutoSend.Margin = new System.Windows.Forms.Padding(2);
             btnAutoSend.Name = "btnAutoSend";
             btnAutoSend.Size = new System.Drawing.Size(75, 21);
@@ -242,7 +242,7 @@ namespace UpperApp
             // 
             panel1.Controls.Add(rbtnChar);
             panel1.Controls.Add(rbtnHex);
-            panel1.Location = new System.Drawing.Point(567, 104);
+            panel1.Location = new System.Drawing.Point(567, 87);
             panel1.Margin = new System.Windows.Forms.Padding(2);
             panel1.Name = "panel1";
             panel1.Size = new System.Drawing.Size(60, 94);
@@ -516,7 +516,7 @@ namespace UpperApp
             // 
             // Tim
             // 
-            Tim.Location = new System.Drawing.Point(569, 70);
+            Tim.Location = new System.Drawing.Point(569, 46);
             Tim.Margin = new System.Windows.Forms.Padding(2);
             Tim.Name = "Tim";
             Tim.Size = new System.Drawing.Size(77, 23);
@@ -526,7 +526,7 @@ namespace UpperApp
             // 
             label16.AutoSize = true;
             label16.Font = new System.Drawing.Font("宋体", 15F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, 134);
-            label16.Location = new System.Drawing.Point(647, 70);
+            label16.Location = new System.Drawing.Point(647, 46);
             label16.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             label16.Name = "label16";
             label16.Size = new System.Drawing.Size(29, 20);
@@ -780,7 +780,7 @@ namespace UpperApp
             // 
             panel2.Controls.Add(rbtnSerial);
             panel2.Controls.Add(rbtnNET);
-            panel2.Location = new System.Drawing.Point(629, 104);
+            panel2.Location = new System.Drawing.Point(629, 87);
             panel2.Margin = new System.Windows.Forms.Padding(2);
             panel2.Name = "panel2";
             panel2.Size = new System.Drawing.Size(63, 94);

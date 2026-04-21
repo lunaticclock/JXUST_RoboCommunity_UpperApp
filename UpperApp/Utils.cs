@@ -22,7 +22,9 @@ namespace UpperApp
         Serial,
         TCP,
         UDP,
-        Bluetooth
+        Bluetooth,
+        WebSocket,
+        CAN
     }
     internal enum RecvOrSend
     {

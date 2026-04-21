@@ -92,6 +92,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="InTheHand.Net.Bluetooth" Version="4.2.4" />
+    <PackageReference Include="Peak.PCANBasic.NET" Version="5.0.1.1131" />
     <PackageReference Include="System.Data.DataSetExtensions" Version="4.6.0-preview3.19128.7" />
     <PackageReference Include="System.IO.Ports" Version="10.0.6" />
   </ItemGroup>

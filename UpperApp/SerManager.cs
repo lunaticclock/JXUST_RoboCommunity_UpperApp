@@ -27,7 +27,8 @@ namespace UpperApp
             _serialPort = new SerialPort(portName, baudRate, parity, dataBits, stopBits)
             {
                 Encoding = encoding,
-                NewLine = "\r\n"
+                NewLine = "\r\n",
+                WriteTimeout = 1000,
             };
             try
             {
@@ -95,6 +96,11 @@ namespace UpperApp
             {
                 _serialPort.Write(buffer, 0, buffer.Length);
                 OnStatusChanged(new Result(Result.NETStatus.SendMessage, data, buffer.Length, "COM") { status = Result.ResStatus.SetNum });
+            }
+            catch (TimeoutException ex)
+            {
+                OnStatusChanged(new Result(Result.NETStatus.ExceptionStop, $"串口写入超时: {ex.Message}"));
+                StopMonitor(); // 自动关闭，避免继续卡死
             }
             catch (Exception ex)
             {

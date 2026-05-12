@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小车上位机 V7.0 — UI 重设计方案</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+  
+  :root {
+    --bg-primary: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-tertiary: #1c2333;
+    --bg-card: #1a2233;
+    --border: #30363d;
+    --border-active: #58a6ff;
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --text-muted: #484f58;
+    --accent-blue: #58a6ff;
+    --accent-green: #3fb950;
+    --accent-orange: #d29922;
+    --accent-red: #f85149;
+    --accent-purple: #bc8cff;
+    --accent-cyan: #39d2c0;
+    --glow-blue: rgba(88,166,255,0.15);
+    --glow-green: rgba(63,185,80,0.15);
+    --radius: 8px;
+    --radius-sm: 4px;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+  
+  body {
+    font-family: 'Noto Sans SC', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    padding: 24px;
+    min-height: 100vh;
+  }
+
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .subtitle { color: var(--text-secondary); font-size: 14px; margin-bottom: 24px; }
+
+  /* Design Concept Section */
+  .concept-section {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+  .concept-section h2 {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--accent-blue);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .concept-section h2::before {
+    content: '';
+    width: 3px;
+    height: 16px;
+    background: var(--accent-blue);
+    border-radius: 2px;
+  }
+
+  /* Main Layout Mockup */
+  .app-mockup {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+
+  /* Title Bar */
+  .title-bar {
+    background: var(--bg-tertiary);
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+  .title-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .title-bar-dots {
+    display: flex;
+    gap: 6px;
+  }
+  .title-bar-dots span {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+  .dot-close { background: var(--accent-red); }
+  .dot-min { background: var(--accent-orange); }
+  .dot-max { background: var(--accent-green); }
+  .title-bar-text {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .title-bar-right {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    box-shadow: 0 0 6px var(--accent-green);
+    display: inline-block;
+    margin-right: 4px;
+  }
+
+  /* Main Content Grid */
+  .main-content {
+    display: grid;
+    grid-template-columns: 280px 1fr 320px;
+    grid-template-rows: 1fr auto;
+    height: 560px;
+  }
+
+  /* Left Panel - Connection */
+  .panel-left {
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .channel-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+  }
+  .channel-tab {
+    flex: 1;
+    padding: 10px 8px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  .channel-tab.active {
+    color: var(--accent-blue);
+    border-bottom-color: var(--accent-blue);
+    background: var(--glow-blue);
+  }
+
+  .channel-config {
+    padding: 12px 16px;
+    flex: 1;
+    overflow-y: auto;
+  }
+  .config-row {
+    margin-bottom: 10px;
+  }
+  .config-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+    display: block;
+  }
+  .config-input {
+    width: 100%;
+    padding: 6px 10px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .config-input:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 2px var(--glow-blue);
+  }
+  .config-select {
+    width: 100%;
+    padding: 6px 10px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 12px;
+    appearance: none;
+  }
+
+  .btn {
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .btn-primary {
+    background: var(--accent-blue);
+    color: #fff;
+    border-color: var(--accent-blue);
+  }
+  .btn-primary:hover {
+    background: #79b8ff;
+    box-shadow: 0 0 12px var(--glow-blue);
+  }
+  .btn-danger {
+    background: transparent;
+    color: var(--accent-red);
+    border-color: var(--accent-red);
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    border-color: var(--border);
+  }
+  .btn-ghost:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .btn-row .btn { flex: 1; }
+
+  /* Center Panel - Data */
+  .panel-center {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .data-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+  }
+
+  .recv-header, .send-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-secondary);
+  }
+  .recv-header {
+    border-top: none;
+  }
+  .data-label {
+    font-size: 12px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .data-label .tag {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .tag-recv { background: rgba(63,185,80,0.15); color: var(--accent-green); }
+  .tag-send { background: rgba(88,166,255,0.15); color: var(--accent-blue); }
+  .tag-hex { background: rgba(188,140,255,0.15); color: var(--accent-purple); }
+  .tag-char { background: rgba(57,210,192,0.15); color: var(--accent-cyan); }
+
+  .data-actions {
+    display: flex;
+    gap: 6px;
+  }
+  .data-actions button {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    cursor: pointer;
+  }
+
+  .recv-content {
+    flex: 1;
+    padding: 12px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--accent-green);
+    line-height: 1.6;
+    overflow-y: auto;
+    background: var(--bg-primary);
+  }
+  .recv-line { opacity: 0.9; }
+  .recv-line:last-child { opacity: 1; }
+
+  .send-area {
+    border-top: 1px solid var(--border);
+  }
+  .send-content {
+    display: flex;
+    padding: 8px 16px;
+    gap: 8px;
+    align-items: flex-end;
+  }
+  .send-input {
+    flex: 1;
+    padding: 8px 12px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    min-height: 36px;
+  }
+  .send-input:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+  }
+
+  /* Status Bar */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    padding: 6px 16px;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-secondary);
+    gap: 16px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .status-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .status-bar .spacer { flex: 1; }
+
+  /* Right Panel - Control */
+  .panel-right {
+    background: var(--bg-secondary);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .control-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+  }
+  .control-tab {
+    flex: 1;
+    padding: 10px 4px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  .control-tab.active {
+    color: var(--accent-cyan);
+    border-bottom-color: var(--accent-cyan);
+    background: rgba(57,210,192,0.08);
+  }
+
+  .control-content {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+  }
+
+  /* Motion Control */
+  .motion-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .motion-display {
+    display: flex;
+    gap: 20px;
+    width: 100%;
+    justify-content: center;
+  }
+  .motion-value {
+    text-align: center;
+  }
+  .motion-value .val {
+    font-size: 28px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent-cyan);
+  }
+  .motion-value .lbl {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .slider-group {
+    width: 100%;
+  }
+  .slider-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+  }
+  .slider-track {
+    width: 100%;
+    height: 6px;
+    background: var(--bg-primary);
+    border-radius: 3px;
+    position: relative;
+    margin: 8px 0;
+  }
+  .slider-fill {
+    position: absolute;
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
+  }
+  .slider-thumb {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+    border: 2px solid var(--bg-primary);
+    top: -5px;
+    box-shadow: 0 0 8px rgba(57,210,192,0.4);
+  }
+
+  .rocker-area {
+    width: 100%;
+    aspect-ratio: 1.4;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .rocker-crosshair {
+    position: absolute;
+    inset: 0;
+  }
+  .rocker-crosshair::before,
+  .rocker-crosshair::after {
+    content: '';
+    position: absolute;
+    background: var(--border);
+  }
+  .rocker-crosshair::before {
+    left: 50%;
+    top: 10%;
+    bottom: 10%;
+    width: 1px;
+  }
+  .rocker-crosshair::after {
+    top: 50%;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+  }
+  .rocker-dot {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+    box-shadow: 0 0 16px rgba(57,210,192,0.5);
+    z-index: 1;
+  }
+  .rocker-label {
+    position: absolute;
+    bottom: 6px;
+    right: 8px;
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  .motion-btns {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+  }
+  .motion-btns .btn { flex: 1; }
+
+  /* Attitude Display */
+  .attitude-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .attitude-card {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+  }
+  .attitude-card .lbl {
+    font-size: 9px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .attitude-card .val {
+    font-size: 18px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent-orange);
+  }
+  .attitude-card.wide {
+    grid-column: span 2;
+  }
+
+  /* Bottom Bar */
+  .bottom-bar {
+    grid-column: 1 / -1;
+    background: var(--bg-tertiary);
+    border-top: 1px solid var(--border);
+    padding: 6px 16px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .bottom-bar .spacer { flex: 1; }
+  .protocol-hint {
+    color: var(--text-muted);
+    font-size: 10px;
+  }
+
+  /* Design Notes */
+  .design-notes {
+    margin-top: 24px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .note-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .note-card h3 {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent-blue);
+    margin-bottom: 8px;
+  }
+  .note-card ul {
+    list-style: none;
+    padding: 0;
+  }
+  .note-card li {
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 3px 0;
+    padding-left: 16px;
+    position: relative;
+  }
+  .note-card li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--accent-cyan);
+  }
+</style>
+</head>
+<body>
+
+<h1>小车上位机 V7.0 — UI 重设计方案</h1>
+<p class="subtitle">Dark Theme · 三栏自适应布局 · 现代工业风</p>
+
+<div class="app-mockup">
+  <!-- Title Bar -->
+  <div class="title-bar">
+    <div class="title-bar-left">
+      <div class="title-bar-dots">
+        <span class="dot-close"></span>
+        <span class="dot-min"></span>
+        <span class="dot-max"></span>
+      </div>
+      <span class="title-bar-text">小车上位机 V7.0</span>
+    </div>
+    <div class="title-bar-right">
+      <span><span class="status-dot"></span>Serial 已连接</span>
+      <span>COM3 @ 115200</span>
+      <span>MEM 42.3M</span>
+    </div>
+  </div>
+
+  <!-- Main 3-Column Layout -->
+  <div class="main-content">
+    
+    <!-- LEFT: Connection Panel -->
+    <div class="panel-left">
+      <div class="panel-header">📡 连接配置</div>
+      <div class="channel-tabs">
+        <div class="channel-tab active">串口</div>
+        <div class="channel-tab">网络</div>
+        <div class="channel-tab">蓝牙</div>
+      </div>
+      <div class="channel-config">
+        <div class="config-row">
+          <label class="config-label">端口</label>
+          <select class="config-select"><option>COM3</option></select>
+        </div>
+        <div class="config-row">
+          <label class="config-label">波特率</label>
+          <select class="config-select"><option>115200</option></select>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-danger">断开</button>
+          <button class="btn btn-primary">连接</button>
+        </div>
+        <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:12px;">
+          <div class="config-row">
+            <label class="config-label">发送通道</label>
+            <div style="display:flex; gap:6px;">
+              <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px;border-color:var(--accent-blue);color:var(--accent-blue);">Serial</button>
+              <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px;">NET</button>
+              <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px;">BT</button>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:12px;">
+          <div class="config-row" style="display:flex;align-items:center;justify-content:space-between;">
+            <label class="config-label" style="margin:0;">自动发送</label>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <input class="config-input" style="width:60px;text-align:center;" value="1000">
+              <span style="font-size:10px;color:var(--text-muted);">ms</span>
+            </div>
+          </div>
+          <div class="config-row" style="display:flex;align-items:center;justify-content:space-between;">
+            <label class="config-label" style="margin:0;">显示模式</label>
+            <div style="display:flex;gap:4px;">
+              <span class="tag tag-char">CHAR</span>
+              <span class="tag tag-hex">HEX</span>
+            </div>
+          </div>
+          <div class="config-row" style="display:flex;align-items:center;justify-content:space-between;">
+            <label class="config-label" style="margin:0;">本地回显</label>
+            <span style="color:var(--accent-green);font-size:11px;">● ON</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER: Data Area -->
+    <div class="panel-center">
+      <div class="data-area">
+        <div class="recv-header">
+          <div class="data-label">
+            接收区 <span class="tag tag-recv">RX 2,048</span>
+          </div>
+          <div class="data-actions">
+            <button>清空</button>
+            <button>转存</button>
+          </div>
+        </div>
+        <div class="recv-content">
+          <div class="recv-line">[14:23:01] FB:50:OVER</div>
+          <div class="recv-line">[14:23:01] RL:50:OVER</div>
+          <div class="recv-line">[14:23:02] YAW:25.3/OVER</div>
+          <div class="recv-line">[14:23:02] PITCH:12.1/OVER</div>
+          <div class="recv-line">[14:23:03] ROLL:-3.7/OVER</div>
+          <div class="recv-line">[14:23:03] DISTANCE:145.2/OVER</div>
+          <div class="recv-line">[14:23:04] FB:50:OVER</div>
+        </div>
+        <div class="send-area">
+          <div class="send-header">
+            <div class="data-label">
+              发送区 <span class="tag tag-send">TX 512</span>
+            </div>
+            <div class="data-actions">
+              <button>清空</button>
+            </div>
+          </div>
+          <div class="send-content">
+            <input class="send-input" placeholder="输入要发送的数据...">
+            <button class="btn btn-primary" style="white-space:nowrap;">发送</button>
+            <button class="btn btn-ghost" style="white-space:nowrap;">开始</button>
+          </div>
+        </div>
+      </div>
+      <div class="status-bar">
+        <div class="status-item"><span class="status-dot"></span> 已连接</div>
+        <div class="status-item">通道: Serial</div>
+        <div class="spacer"></div>
+        <div class="status-item">RX: 2,048 B</div>
+        <div class="status-item">TX: 512 B</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Control Panel -->
+    <div class="panel-right">
+      <div class="control-tabs">
+        <div class="control-tab active">运动控制</div>
+        <div class="control-tab">批量发送</div>
+        <div class="control-tab">地图</div>
+      </div>
+      <div class="control-content">
+        <!-- Motion Control -->
+        <div class="motion-panel">
+          <div class="motion-display">
+            <div class="motion-value">
+              <div class="val">50</div>
+              <div class="lbl">速度 FB</div>
+            </div>
+            <div class="motion-value">
+              <div class="val">50</div>
+              <div class="lbl">方向 RL</div>
+            </div>
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-label"><span>速度</span><span>50</span></div>
+            <div class="slider-track">
+              <div class="slider-fill" style="left:0;width:50%;"></div>
+              <div class="slider-thumb" style="left:calc(50% - 8px);"></div>
+            </div>
+          </div>
+          <div class="slider-group">
+            <div class="slider-label"><span>方向</span><span>50</span></div>
+            <div class="slider-track">
+              <div class="slider-fill" style="left:0;width:50%;"></div>
+              <div class="slider-thumb" style="left:calc(50% - 8px);"></div>
+            </div>
+          </div>
+
+          <div class="rocker-area">
+            <div class="rocker-crosshair"></div>
+            <div class="rocker-dot"></div>
+            <div class="rocker-label">摇杆模式</div>
+          </div>
+
+          <div class="motion-btns">
+            <button class="btn btn-ghost">停车</button>
+            <button class="btn btn-ghost">回正</button>
+          </div>
+
+          <!-- Attitude -->
+          <div class="attitude-grid">
+            <div class="attitude-card">
+              <div class="lbl">YAW 偏航</div>
+              <div class="val">25.3</div>
+            </div>
+            <div class="attitude-card">
+              <div class="lbl">ROLL 横滚</div>
+              <div class="val">-3.7</div>
+            </div>
+            <div class="attitude-card">
+              <div class="lbl">PITCH 俯仰</div>
+              <div class="val">12.1</div>
+            </div>
+            <div class="attitude-card">
+              <div class="lbl">DIST 航程</div>
+              <div class="val">145.2</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Bar -->
+    <div class="bottom-bar">
+      <span class="protocol-hint">发送: FB:{val}:OVER | RL:{val}:OVER | FR:{spd}:{dir}:OVER</span>
+      <div class="spacer"></div>
+      <span>接收: YAW/ROLL/PITCH/DISTANCE:{val}/OVER</span>
+    </div>
+  </div>
+</div>
+
+<!-- Design Notes -->
+<div class="design-notes">
+  <div class="note-card">
+    <h3>🎨 视觉改造要点</h3>
+    <ul>
+      <li>深色主题 (Dark Mode) — 工业控制软件标准风格</li>
+      <li>JetBrains Mono 等宽字体 — 数据显示清晰对齐</li>
+      <li>色彩语义化 — 蓝=交互、绿=接收/成功、橙=数值、红=危险/断开</li>
+      <li>状态发光指示 — 连接状态一目了然</li>
+      <li>卡片化布局 — 信息分组清晰，视觉层次分明</li>
+      <li>WinForms 暗色实现 — 手绘控件 / DarkUI NuGet 包</li>
+    </ul>
+  </div>
+  <div class="note-card">
+    <h3>📐 布局改造要点</h3>
+    <ul>
+      <li>三栏布局 — 左:连接配置 | 中:数据收发 | 右:控制面板</li>
+      <li>可缩放窗口 — Sizable 边框 + Anchor/Dock 自适应</li>
+      <li>连接配置独立面板 — 串口/网络/蓝牙 Tab 切换</li>
+      <li>数据区最大化 — 中间栏弹性伸缩，接收区占满</li>
+      <li>姿态数据内嵌控制面板 — 不再散落底部</li>
+      <li>协议格式提示合并到底部状态栏</li>
+    </ul>
+  </div>
+  <div class="note-card">
+    <h3>🔧 WinForms 现代化技术</h3>
+    <ul>
+      <li>DarkUI NuGet — 暗色主题控件库</li>
+      <li>TableLayoutPanel — 替代绝对坐标实现自适应</li>
+      <li>SplitContainer — 可拖拽分隔三栏</li>
+      <li>自定义控件渲染 — OwnerDraw 按钮和滑块</li>
+      <li>FluentDesign 配色 — Acrylic/Mica 风格参考</li>
+      <li>DPI 感知 — PerMonitorV2 自动缩放</li>
+    </ul>
+  </div>
+  <div class="note-card">
+    <h3>📋 命名规范化</h3>
+    <ul>
+      <li>label2~41 → 语义化命名 (lblPort, lblBaud...)</li>
+      <li>groupBox3~5 → 语义化 (grpConnection, grpData...)</li>
+      <li>panel1/2 → 语义化 (pnlMode, pnlChannel)</li>
+      <li>按钮统一前缀 btn + 功能名</li>
+      <li>输入框统一前缀 txt / cbo / num</li>
+    </ul>
+  </div>
+</div>
+
+</body>
+</html>

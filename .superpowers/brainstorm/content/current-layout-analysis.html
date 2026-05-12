@@ -1,0 +1,103 @@
+<h2>当前 UI 布局分析与问题诊断</h2>
+<p class="subtitle">基于 Form1.Designer.cs 的完整分析</p>
+
+<div class="section">
+<h3>当前布局结构示意</h3>
+<div class="mockup">
+  <div class="mockup-header">当前布局 (1391×481 固定尺寸，不可缩放)</div>
+  <div class="mockup-body" style="display:grid;grid-template-columns:63% 37%;grid-template-rows:70% auto;gap:4px;font-size:11px;">
+    <div style="border:2px solid #4a9eff;border-radius:6px;padding:6px;overflow:hidden;">
+      <div style="font-weight:bold;color:#4a9eff;margin-bottom:3px;">groupBox3 "串口工作区" (874×392)</div>
+      <div style="display:grid;grid-template-columns:19% 62% 11%;grid-template-rows:59% 18%;gap:3px;">
+        <div style="background:#1a1a2e;border-radius:4px;padding:3px;color:#aaa;">
+          串口配置<br>端口/波特率<br>打开串口<br><br>NET配置<br>IP/Port/Type<br>开始监听<br>Peer选择
+        </div>
+        <div style="background:#1a1a2e;border-radius:4px;padding:3px;color:#aaa;">
+          RecvBox 接收区 (538×230)
+        </div>
+        <div style="background:#1a1a2e;border-radius:4px;padding:3px;color:#aaa;">
+          HEX/CHAR<br>通道选择<br>自动发送<br>时间间隔
+        </div>
+        <div style="background:#1a1a2e;border-radius:4px;padding:3px;color:#aaa;grid-column:span 3;">
+          SendBox + 发送/开始/清空 + Rx/Tx计数
+        </div>
+      </div>
+    </div>
+    <div style="border:2px solid #ff6b6b;border-radius:6px;padding:6px;overflow:hidden;">
+      <div style="font-weight:bold;color:#ff6b6b;margin-bottom:3px;">tabControl1 (508×332)</div>
+      <div style="display:flex;gap:2px;margin-bottom:3px;">
+        <span style="background:#ff6b6b;color:#fff;padding:1px 6px;border-radius:3px 3px 0 0;font-size:9px;">运动控制</span>
+        <span style="background:#333;color:#aaa;padding:1px 6px;font-size:9px;">批量字串</span>
+        <span style="background:#333;color:#aaa;padding:1px 6px;font-size:9px;">行走路线</span>
+        <span style="background:#333;color:#aaa;padding:1px 6px;font-size:9px;">蓝牙模块</span>
+      </div>
+      <div style="background:#1a1a2e;border-radius:4px;padding:3px;color:#aaa;">
+        Tab内容区 (500×299)
+      </div>
+    </div>
+    <div style="border:2px solid #51cf66;border-radius:6px;padding:3px;font-size:10px;">
+      <span style="color:#51cf66;font-weight:bold;">groupBox2</span> 接收格式 | <span style="color:#ffd43b;font-weight:bold;">groupBox5</span> 姿态 | <span style="color:#cc5de8;font-weight:bold;">groupBox1</span> 发送格式
+    </div>
+    <div style="border:2px solid #fcc419;border-radius:6px;padding:3px;font-size:10px;color:#fcc419;">
+      底部: 防火墙提示 | 内存用量
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="section">
+<h3>识别出的 7 个核心问题</h3>
+<div class="options" data-multiselect>
+  <div class="option" data-choice="p1" onclick="toggleSelect(this)">
+    <div class="letter">1</div>
+    <div class="content">
+      <h3>固定尺寸，无自适应</h3>
+      <p>FixedSingle 边框，1391×481 硬编码，所有控件绝对坐标定位，窗口不可缩放</p>
+    </div>
+  </div>
+  <div class="option" data-choice="p2" onclick="toggleSelect(this)">
+    <div class="letter">2</div>
+    <div class="content">
+      <h3>groupBox3 职责混乱</h3>
+      <p>标题"串口工作区"但包含串口+NET+收发+通道选择+自动发送，成了超级容器</p>
+    </div>
+  </div>
+  <div class="option" data-choice="p3" onclick="toggleSelect(this)">
+    <div class="letter">3</div>
+    <div class="content">
+      <h3>控件命名语义不清</h3>
+      <p>label2~label41 数字编号无含义；groupBox3/4/5 无语义；通道选择散落</p>
+    </div>
+  </div>
+  <div class="option" data-choice="p4" onclick="toggleSelect(this)">
+    <div class="letter">4</div>
+    <div class="content">
+      <h3>视觉风格过时</h3>
+      <p>默认灰色主题，无暗色模式，按钮/输入框全是系统默认样式</p>
+    </div>
+  </div>
+  <div class="option" data-choice="p5" onclick="toggleSelect(this)">
+    <div class="letter">5</div>
+    <div class="content">
+      <h3>底部信息区零散</h3>
+      <p>发送格式/接收格式/姿态数据分散在不同位置，信息密度低</p>
+    </div>
+  </div>
+  <div class="option" data-choice="p6" onclick="toggleSelect(this)">
+    <div class="letter">6</div>
+    <div class="content">
+      <h3>蓝牙页面布局拥挤</h3>
+      <p>收发框+设备列表+扫描+连接全部挤在 500×299 的 Tab 页中</p>
+    </div>
+  </div>
+  <div class="option" data-choice="p7" onclick="toggleSelect(this)">
+    <div class="letter">7</div>
+    <div class="content">
+      <h3>运动控制与数据收发分离</h3>
+      <p>运动在右侧Tab，收发在左侧，实际操作需视线跳跃</p>
+    </div>
+  </div>
+</div>
+</div>
+
+<p style="text-align:center;color:#888;margin-top:16px;">请查看并告诉我：这些问题是否准确？有没有遗漏或优先级差异？</p>

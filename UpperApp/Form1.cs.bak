@@ -1,0 +1,899 @@
+//#define Firewall
+
+using InTheHand.Net.Sockets;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Drawing;
+using System.IO;
+using System.IO.Ports;
+using System.Runtime.Versioning;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using UpperApp.Commands;
+using UpperApp.Communication;
+using UpperApp.Core;
+using UpperApp.Processing;
+using UpperApp.Services;
+using UpperApp.UI;
+using Button = System.Windows.Forms.Button;
+using TextBox = System.Windows.Forms.TextBox;
+#if Firewall
+    using NetFwTypeLib;
+#endif
+
+namespace UpperApp
+{
+    [SupportedOSPlatform("windows10.0.19041.0")]
+    public partial class UpperApp : Form, IDisplayAdapter
+    {
+        [DefaultValue(0)]
+        public int Rn { get; set; }
+        [DefaultValue(0)]
+        public int Sn { get; set; }
+        private int Cnt = 0, Counter;
+        private int xs = 50;
+        private int ys = 50;
+        private CheckBox[] checks;
+        private TextBox[] texts;
+        private Button[] btn;
+        private readonly ILogger _logger = new FileLogger();
+        private MessageProcessor _msgProcessor;
+        private readonly DeviceService _deviceService;
+        private readonly DataPipeline _receivePipeline;
+
+        private readonly IConfigStorage _configStorage;
+        private readonly MapTracker _mapTracker;
+
+        public UpperApp()
+        {
+            InitializeComponent();
+            DarkRenderer.ApplyThemeToForm(this);
+            var uiFont = new Font("Microsoft YaHei UI", 9F);
+            Font = uiFont;
+            RecvBox.Font = new Font("Consolas", 9F);
+            SendBox.Font = new Font("Consolas", 9F);
+            BthRecvBox.Font = new Font("Consolas", 9F);
+            btnSend.Click += new EventHandler((sender, e) => { StrSend(SendBox.Text); });
+            btnNoRL.Click += new EventHandler((sender, e) =>
+            {
+                RLBar.Value = 50;
+                _deviceService.TryExecuteCommand(new MoveCommand(MoveCommand.MoveType.RightLeft, 50, 50));
+            });
+            Stop.Click += new EventHandler((sender, e) =>
+            {
+                FBBar.Value = 50;
+                _deviceService.TryExecuteCommand(new MoveCommand(MoveCommand.MoveType.ForwardBackward, 50));
+            });
+            btnclRecv.Click += new EventHandler((sender, e) => { ResetRS(RecvOrSend.Recv); });
+            btnclSend.Click += new EventHandler((sender, e) => { ResetRS(RecvOrSend.Send); });
+            smallChange.Leave += new EventHandler((sender, e) => { if (int.TryParse(smallChange.Text, out int v)) FBBar.SmallChange = RLBar.SmallChange = v; });
+            FBBar.MouseUp += new MouseEventHandler((sender, e) => { _deviceService.TryExecuteCommand(new MoveCommand(MoveCommand.MoveType.ForwardBackward, FBBar.Value)); });
+            RLBar.MouseUp += new MouseEventHandler((sender, e) => { _deviceService.TryExecuteCommand(new MoveCommand(MoveCommand.MoveType.RightLeft, 50, RLBar.Value)); });
+
+            SerPortItem.DropDown += new EventHandler((sender, e) =>
+            {
+                SerPortItem.Items.Clear();
+                SerPortItem.Items.AddRange(SerialPort.GetPortNames());
+            });
+            HostIP.DropDown += new EventHandler((sender, e) =>
+            {
+                HostIP.Items.Clear();
+                GetLocalIP();
+            });
+
+            checks = [MsgHex1, MsgHex2, MsgHex3, MsgHex4, MsgHex5, MsgHex6, MsgHex7, MsgHex8];
+            texts = [MsgBox1, MsgBox2, MsgBox3, MsgBox4, MsgBox5, MsgBox6, MsgBox7, MsgBox8];
+            btn = [btnMsg1, btnMsg2, btnMsg3, btnMsg4, btnMsg5, btnMsg6, btnMsg7, btnMsg8];
+            for (int i = 0; i < btn.Length; i++)
+            {
+                int index = i;
+                btn[i].Click += (s, e) => Btn_Click(index);
+            }
+            //*/
+            Text = proname + prover;
+
+            string[] Com = ["9600", "19200", "38400", "115200", "256000", "460800", "512000", "921600"];
+            Baud.Items.AddRange(Com);
+            Baud.SelectedIndex = 3;
+
+            string[] NetTypes = ["TCP", "UDP"];
+            NetType.Items.AddRange(NetTypes);
+            NetType.SelectedIndex = 0;
+            // 当 TCP/UDP 下拉框变化时，若当前 NET 通道处于活动状态，则更新具体子类型
+            NetType.SelectedIndexChanged += (s, e) => {
+                if (rbtnNET.Checked)
+                    _deviceService.ActiveChannel = NetType.Text == "TCP" ? ChannelType.TCP : ChannelType.UDP;
+            };
+            Tim.Text = "1000";
+            GetLocalIP();
+            
+
+            _msgProcessor = new MessageProcessor(this, _logger);
+            _receivePipeline = new DataPipeline(DispatchReceivedData);
+            _receivePipeline.Start();
+
+            DoubleBuffered = true;
+            SetStyle(ControlStyles.AllPaintingInWmPaint, true);
+
+#if Firewall
+                NetFwAddApps(proname, Application.ExecutablePath);
+#endif
+            _configStorage = AppServices.GetService<IConfigStorage>();
+            _deviceService = AppServices.GetService<DeviceService>();
+            _deviceService.StatusChanged += UnifiedStatusChanged;
+            _deviceService.ActiveChannel = ChannelType.Serial;
+            // 在最后异步加载配置（不阻塞UI）
+            _mapTracker = new MapTracker(MapBox);
+            _ = LoadSettingsAsync();
+        }
+
+        private async Task LoadSettingsAsync()
+        {
+            ApplySettingsToUI(await _configStorage.LoadAsync());
+        }
+
+        private void ApplySettingsToUI(AppSettings settings)
+        {
+            // 恢复通用UI设置
+            smallChange.Text = settings.SliderSmallChange.ToString();
+            FBBar.SmallChange = RLBar.SmallChange = settings.SliderSmallChange;
+            Tim.Text = settings.AutoSendIntervalMs.ToString();
+            btnAutoSend.Checked = settings.AutoSendEnabled;
+            ReDisp.Checked = settings.LocalEcho;
+            AngDirDisp.Checked = settings.AngleDisplayEnabled;
+
+            // 恢复串口设置
+            if (!string.IsNullOrEmpty(settings.SerialConfig.PortName))
+                SerPortItem.Text = settings.SerialConfig.PortName;
+            Baud.Text = settings.SerialConfig.BaudRate.ToString();
+            // 注意：Parity/DataBits/StopBits 未在UI上暴露，暂不恢复
+
+            // 恢复TCP设置
+            if (!string.IsNullOrEmpty(settings.TcpConfig.LocalIP))
+                HostIP.Text = settings.TcpConfig.LocalIP;
+            Port.Text = settings.TcpConfig.Port > 0 ? settings.TcpConfig.Port.ToString() : "1234";
+
+            // 恢复UDP设置（与TCP共用HostIP/Port控件，由用户手动切换协议时再应用）
+            if (!string.IsNullOrEmpty(settings.UdpConfig.LocalIP))
+                HostIP.Text = settings.UdpConfig.LocalIP;
+
+            // 恢复蓝牙设置
+            // (蓝牙模式、目标设备等，可后续根据需要)
+
+            // 恢复批量消息
+            for (int i = 0; i < checks.Length && i < settings.PresetMessages.Count; i++)
+            {
+                texts[i].Text = settings.PresetMessages[i].Text;
+                checks[i].Checked = settings.PresetMessages[i].IsHex;
+            }
+
+            // 恢复地图设置
+            if (!string.IsNullOrEmpty(settings.LastMapImagePath) && File.Exists(settings.LastMapImagePath))
+            {
+                try
+                {
+                    MapBox.BackgroundImage = Image.FromFile(settings.LastMapImagePath);
+                    RealDist.Text = settings.CalibratedDistance.ToString("F2");
+                }
+                catch { /* 忽略图片加载错误 */ }
+            }
+
+            // 恢复窗口位置
+            if (settings.WindowLeft >= 0 && settings.WindowTop >= 0)
+                SetBounds(settings.WindowLeft, settings.WindowTop, settings.WindowWidth, settings.WindowHeight);
+
+            // 恢复上次使用的发送通道（但需要对应radioButton存在，暂不自动切换）
+            // 可以记录但需要UI配合，简单起见只应用部分
+        }
+
+        private AppSettings CollectCurrentSettings()
+        {
+            var settings = new AppSettings
+            {
+                // 通用UI
+                SliderSmallChange = int.TryParse(smallChange.Text, out int step) ? step : 25,
+                AutoSendIntervalMs = int.TryParse(Tim.Text, out int interval) ? interval : 1000,
+                AutoSendEnabled = btnAutoSend.Checked,
+                LocalEcho = ReDisp.Checked,
+                AngleDisplayEnabled = AngDirDisp.Checked,
+
+                // 串口
+                SerialConfig = new SerialParams
+                {
+                    PortName = SerPortItem.Text,
+                    BaudRate = int.TryParse(Baud.Text, out int baud) ? baud : 115200,
+                    Parity = Parity.None,
+                    DataBits = 8,
+                    StopBits = StopBits.One
+                },
+
+                // TCP
+                TcpConfig = new TcpServerParams
+                {
+                    LocalIP = HostIP.Text,
+                    Port = int.TryParse(Port.Text, out int tcpPort) ? tcpPort : 1234
+                },
+
+                // UDP
+                UdpConfig = new UdpParams
+                {
+                    LocalIP = HostIP.Text,
+                    Port = int.TryParse(Port.Text, out int udpPort) ? udpPort : 1234
+                },
+
+                // 蓝牙（只保存是否为服务端模式，目标设备名暂缓）
+                BthConfig = new BluetoothParams
+                {
+                    IsServerMode = true,
+                    TargetDeviceName = ""
+                },
+
+                // 批量消息
+                PresetMessages = [],
+
+                // 地图
+                LastMapImagePath = MapBox.BackgroundImage != null ? (openFileDialog1.FileName ?? "") : "",
+                CalibratedDistance = float.TryParse(RealDist.Text, out float dist) ? dist : 1.0f,
+
+                // 窗口位置
+                WindowLeft = Left,
+                WindowTop = Top,
+                WindowWidth = Width,
+                WindowHeight = Height
+            };
+
+            for (int i = 0; i < checks.Length; i++)
+            {
+                settings.PresetMessages.Add(new PresetMessage
+                {
+                    Text = texts[i].Text,
+                    IsHex = checks[i].Checked
+                });
+            }
+
+            return settings;
+        }
+
+        private void UnifiedStatusChanged(Result status)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action(() => UnifiedStatusChanged(status)));
+                return;
+            }
+
+            switch (status.NetStatus)
+            {
+                case Result.NETStatus.ReciveMessage:
+                    _receivePipeline.TryEnqueue(status);
+                    break;
+                case Result.NETStatus.SendMessage:
+                    _msgProcessor.ProcessSentMessage(status);
+                    break;
+                case Result.NETStatus.ExceptionStop:
+                    _logger.WriteLine($"[{Utils.GetTime()}] ExceptionStop [{status.Channel}]: {status.Message}");
+                    if (status.Channel == ChannelType.Serial)
+                        MessageBox.Show(this, status.Message, "串口错误");
+                    else if (status.Channel == ChannelType.Bluetooth)
+                        MessageBox.Show(this, status.Message, "蓝牙错误");
+                    else if (status.Channel == ChannelType.TCP || status.Channel == ChannelType.UDP)
+                        MessageBox.Show(this, status.Message, string.IsNullOrEmpty(status.RemoteIP) ? "网络错误" : "远端关闭");
+                    break;
+                case Result.NETStatus.MonitorStart:
+                case Result.NETStatus.MonitorStop:
+                    UpdateMonitorUI(status);
+                    break;
+                case Result.NETStatus.NewRemote:
+                    if (status.Channel == ChannelType.TCP || status.Channel == ChannelType.UDP)
+                    {
+                        Infotext.Text = "连接成功！";
+                        Peer.Text = status.Message;
+                        Peer.DataSource = _deviceService.GetPeerList(status.Channel);
+                    }
+                    else if (status.Channel == ChannelType.Bluetooth)
+                    {
+                        BthRecvBox.AppendText(status.Message);
+                        ChoseSlaveBthList.DataSource = null;
+                        ChoseSlaveBthList.DataSource = _deviceService.GetPeerList(ChannelType.Bluetooth);
+                    }
+                    break;
+                case Result.NETStatus.RemoteStop:
+                    if (status.Channel == ChannelType.TCP || status.Channel == ChannelType.UDP)
+                    {
+                        Peer.Text = "";
+                        Peer.DataSource = _deviceService.GetPeerList(status.Channel);
+                        Infotext.Text = status.Message;
+                    }
+                    else if (status.Channel == ChannelType.Bluetooth)
+                    {
+                        Infotext.Text = "连接断开!";
+                        BthConnectBtn.Text = "连接";
+                        ChoseSlaveBthList.DataSource = null;
+                        ChoseSlaveBthList.DataSource = _deviceService.GetPeerList(ChannelType.Bluetooth);
+                    }
+                    break;
+                case Result.NETStatus.ManualStop:
+                    if (status.Channel == ChannelType.TCP || status.Channel == ChannelType.UDP)
+                        Peer.Text = "";
+                    break;
+            }
+        }
+
+        private void DispatchReceivedData(Result result)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action(() => DispatchReceivedData(result)));
+                return;
+            }
+            _msgProcessor.ProcessReceivedMessage(result);
+        }
+
+        private void UpdateMonitorUI(Result status)
+        {
+            bool isStart = (status.NetStatus == Result.NETStatus.MonitorStart);
+            switch (status.Channel)
+            {
+                case ChannelType.Serial:
+                    btnSerial.Text = isStart ? "关闭串口" : "打开串口";
+                    SerPortItem.Enabled = !isStart;
+                    Baud.Enabled = !isStart;
+                    if (isStart) rbtnSerial.Checked = true;
+                    Infotext.Text = status.Message;
+                    break;
+                case ChannelType.TCP:
+                case ChannelType.UDP:
+                    btnListen.Text = isStart ? "停止监听" : "开始监听";
+                    NetType.Enabled = !isStart;
+                    HostIP.Enabled = !isStart;
+                    if (isStart)
+                    {
+                        rbtnNET.Checked = true;
+                        Peer.Text = "";
+                    }
+                    Infotext.Text = status.Message;
+                    break;
+                case ChannelType.Bluetooth:
+                    BthListenBtn.Text = isStart ? "关闭" : "监听";
+                    if (isStart) BthRecvBox.AppendText("Service started!\r\n");
+                    break;
+            }
+        }
+
+        #region 添加防火墙允许列表的代码
+#if Firewall
+                public static void NetFwAddApps(string name, string executablePath)
+                {
+                    INetFwMgr netFwMgr = (INetFwMgr)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwMgr"));
+                    INetFwAuthorizedApplication app = (INetFwAuthorizedApplication)Activator.CreateInstance(
+                        Type.GetTypeFromProgID("HNetCfg.FwAuthorizedApplication"));
+
+                    //在例外列表里，程序显示的名称  
+                    app.Name = name;
+
+                    //程序的路径及文件名  
+                    app.ProcessImageFileName = executablePath;
+
+                    //是否启用该规则
+                    app.Enabled = true;
+
+                    //创建firewall管理类的实例  
+                    //加入到防火墙的管理策略  
+            
+                    bool exist = false;
+                    //加入到防火墙的管理策略  
+                    foreach (INetFwAuthorizedApplication mApp in netFwMgr.LocalPolicy.CurrentProfile.AuthorizedApplications)
+                    {
+                        if (app == mApp)
+                        {
+                            exist = true;
+                            break;
+                        }
+                    }
+                    if (!exist)
+                        netFwMgr.LocalPolicy.CurrentProfile.AuthorizedApplications.Add(app);
+                }
+#endif
+        #endregion
+
+        private void ResetRS(RecvOrSend rs)
+        {
+            if (rs == RecvOrSend.Recv)
+            {
+                Rn = 0;
+                label18.Text = Rn.ToString();
+                RecvBox.Text = "";
+                Infotext.Text = "接收区已清空";
+            }
+            else
+            {
+                Sn = 0;
+                label22.Text = Sn.ToString();
+                SendBox.Text = "";
+                Infotext.Text = "发送区已清空";
+            }
+        }
+
+        void IDisplayAdapter.UpdateByteCount(int count, RecvOrSend direction)
+        {
+            if (direction == RecvOrSend.Recv)
+            {
+                Rn += count;
+                label18.Text = Rn.ToString();
+            }
+            else
+            {
+                Sn += count;
+                label22.Text = Sn.ToString();
+            }
+        }
+
+        bool IDisplayAdapter.IsCharMode => rbtnChar.Checked;
+        bool IDisplayAdapter.IsHexMode => rbtnHex.Checked;
+        bool IDisplayAdapter.IsLocalEchoEnabled => ReDisp.Checked;
+        bool IDisplayAdapter.IsAngleDisplayEnabled => AngDirDisp.Checked;
+        void IDisplayAdapter.AppendToReceiveBox(string text) => RecvBox.AppendText(text);
+        void IDisplayAdapter.UpdateAngleDisplay(string message) => SetAngDisp(message);
+        void IDisplayAdapter.OnNewPeer(string peerInfo)
+        {
+            Peer.DataSource = _deviceService.GetPeerList(_deviceService.ActiveChannel);
+        }
+
+        private void SetAngDisp(string str)
+        {
+            var parsed = ProtocolHandler.TryParse(str);
+            if (!parsed.HasValue) return;
+
+            switch (parsed.Value.Type)
+            {
+                case ProtocolHandler.DataType.Yaw: LabYaw.Text = parsed.Value.Value; break;
+                case ProtocolHandler.DataType.Pitch: LabPitch.Text = parsed.Value.Value; break;
+                case ProtocolHandler.DataType.Roll: LabRoll.Text = parsed.Value.Value; break;
+                case ProtocolHandler.DataType.Distance: LabDist.Text = parsed.Value.Value; break;
+            }
+        }
+
+        private async void UpperApp_Load(object sender, EventArgs e)
+        {
+            FBtext.DataBindings.Add("Text", FBBar, "Value", false, DataSourceUpdateMode.OnPropertyChanged);
+            RLtext.DataBindings.Add("Text", RLBar, "Value", false, DataSourceUpdateMode.OnPropertyChanged);
+
+            mainSplit.SplitterDistance = 280;
+            mainSplit.Panel1MinSize = 220;
+            mainSplit.Panel2MinSize = 600;
+            rightSplit.SplitterDistance = rightSplit.Width - 320;
+            rightSplit.Panel2MinSize = 280;
+        }
+
+        public void GetLocalIP()
+        {
+            HostIP.Items.Clear();
+            foreach (string ip in Utils.GetLocalIPv4Addresses())
+            {
+                HostIP.Items.Add(ip);
+            }
+        }
+
+        //发送数据  串口TCP和UDP
+        private void StrSend(string Buf)
+        {
+            _deviceService.SetTarget(Peer.Text);
+            _deviceService.SetBluetoothTarget(ChoseSlaveBthList.Text);
+
+            var command = new RawSendCommand(Buf, _deviceService.ActiveChannel);
+            if (!_deviceService.TryExecuteCommand(command))
+            {
+                Infotext.Text = "发送失败：通道未连接或未找到";
+            }
+        }
+
+        private void BthListenBtn_Click(object sender, EventArgs e)
+        {
+            if (!_deviceService.IsBluetoothRadioAvailable)
+            {
+                MessageBox.Show(this, "检测不到本机蓝牙设备", "error");
+                return;
+            }
+            if (!_deviceService.IsBluetoothRadioPoweredOn)
+            {
+                MessageBox.Show(this, "请先在系统中打开蓝牙", "warning");
+                return;
+            }
+            if (!_deviceService.IsBluetoothReady)
+            {
+                var param = new BluetoothParams { IsServerMode = true };
+                _deviceService.StartBluetooth(param);
+                BthRecvBox.AppendText($"Radio address: {_deviceService.BluetoothRadioAddress}\r\n");
+                BthRecvBox.AppendText($"Mode: {_deviceService.BluetoothRadioMode}\r\n");
+                BthRecvBox.AppendText("Service started!\r\n");
+                BthListenBtn.Text = "关闭";
+            }
+            else
+            {
+                _deviceService.StopBluetooth();
+                BthListenBtn.Text = "监听";
+            }
+        }
+
+        private void BthSendBtn_Click(object sender, EventArgs e)
+        {
+            if (_deviceService.IsBluetoothReady)
+                _deviceService.SendBluetooth(BthSendBox.Text);
+            else if (!string.IsNullOrEmpty(ChoseSlaveBthList.Text))
+                _deviceService.SendBluetooth(BthSendBox.Text, ChoseSlaveBthList.Text);
+            else
+                MessageBox.Show(this, "请连接设备", "warning");
+        }
+
+        private void BthConnectBtn_Click(object sender, EventArgs e)
+        {
+            if (BthDeviceList.SelectedIndex == -1)
+            {
+                if (!_deviceService.IsBluetoothReady)
+                    MessageBox.Show(this, "请选择设备", "warning");
+                else
+                {
+                    _deviceService.DisconnectBluetoothClient();
+                    BthConnectBtn.Text = "连接";
+                }
+            }
+            else
+            {
+                _deviceService.ConnectBluetoothDevice(BthDeviceList.SelectedItem.ToString());
+                BthConnectBtn.Text = "断开";
+            }
+        }
+
+        private void BtnListen_Click(object sender, EventArgs e)
+        {
+            ChannelType netType = NetType.Text == "TCP" ? ChannelType.TCP : ChannelType.UDP;
+            if (!_deviceService.IsChannelReady(netType))
+            {
+                if (string.IsNullOrEmpty(HostIP.Text))
+                {
+                    Infotext.Text = "请选择IP";
+                    return;
+                }
+                if (!int.TryParse(Port.Text, out int port) || port <= 0 || port > 65535)
+                {
+                    Infotext.Text = "端口无效";
+                    return;
+                }
+                if (netType == ChannelType.TCP)
+                {
+                    var param = new TcpServerParams { LocalIP = HostIP.Text, Port = port };
+                    _deviceService.StartChannel(netType, param);
+                }
+                else
+                {
+                    var param = new UdpParams { LocalIP = HostIP.Text, Port = port };
+                    _deviceService.StartChannel(netType, param);
+                }
+                Peer.DataSource = _deviceService.GetPeerList(netType);
+            }
+            else
+            {
+                _deviceService.StopChannel(netType);
+                Peer.DataSource = null;
+                Peer.Text = "";
+            }
+        }
+
+        private void SendTimer_Tick(object sender, EventArgs e)
+        {
+            Infotext.Text = Cnt++.ToString();
+            if (btnAutoSend.Checked && (Cnt >= Counter))
+            {
+                StrSend(SendBox.Text);
+                Cnt = 0;
+            }
+        }
+
+        private void BtnBegin_Click(object sender, EventArgs e)
+        {
+            if (btnBegin.Text == "开始")
+            {
+                bool anyConnected = _deviceService.IsAnyChannelReady();
+                if (anyConnected)
+                {
+            if (!int.TryParse(Tim.Text, out int interval) || interval < 100)
+            {
+                Infotext.Text = "时间间隔无效";
+                return;
+            }
+            Counter = interval / 100;
+                    SendTimer.Start(); //开启定时器
+                    btnBegin.Text = "停止";
+                }
+                else
+                    Infotext.Text = "端口未打开!";
+            }
+            else
+            {
+                SendTimer.Stop(); //停止定时器
+                btnBegin.Text = "开始";
+            }
+        }
+
+        private void BtnSerial_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrEmpty(SerPortItem.Text))
+            {
+                Infotext.Text = "未选中串口";
+                return;
+            }
+
+            if (!_deviceService.IsChannelReady(ChannelType.Serial))
+            {
+                int baudRate = 115200;
+                if (!string.IsNullOrEmpty(Baud.Text))
+                    _ = int.TryParse(Baud.Text, out baudRate);
+                var param = new SerialParams
+                {
+                    PortName = SerPortItem.Text,
+                    BaudRate = baudRate,
+                    Parity = Parity.None,
+                    DataBits = 8,
+                    StopBits = StopBits.One
+                };
+                _deviceService.StartChannel(ChannelType.Serial, param);
+            }
+            else
+            {
+                _deviceService.StopChannel(ChannelType.Serial);
+            }
+        }
+
+        private void Rocker_Click(object sender, EventArgs e)
+        {
+            if (Rocker.Text == "摇杆开")
+            {
+                Rocker.Text = "摇杆关";
+            }
+            else
+            {
+                Rocker.Text = "摇杆开";
+                SetV(50, 50);
+                _deviceService.TryExecuteCommand(new MoveCommand(MoveCommand.MoveType.FullControl, int.Parse(FBtext.Text), int.Parse(RLtext.Text)));
+            }
+        }
+
+        private void Rocker_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (Rocker.Text == "摇杆关")
+            {
+                int x = e.Location.X * 100 / 140;
+                int y = (-e.Location.Y + 160) * 100 / 150;
+
+                if (x < 0)
+                    x = 0;
+                else if (x > 100)
+                    x = 100;
+
+                if (y < 0)
+                    y = 0;
+                else if (y > 100)
+                    y = 100;
+
+                if (x % 5 == 0)
+                    RLBar.Value = x;
+                if (y % 5 == 0)
+                    FBBar.Value = y;
+                if (xs != RLBar.Value || ys != FBBar.Value)
+                {
+                    try
+                    {
+                        _deviceService.TryExecuteCommand(new MoveCommand(MoveCommand.MoveType.FullControl, FBBar.Value, RLBar.Value));
+                    }
+                    catch (Exception ex)
+                    {
+                        Rocker.Text = "摇杆开";
+                        SetV(50, 50);
+                        MessageBox.Show(this, ex.Message, "error");
+                    }
+                    xs = RLBar.Value;
+                    ys = FBBar.Value;
+                }
+            }
+        }
+
+        private void SetV(int Vx, int Vy)
+        {
+            FBBar.Value = Vx;
+            RLBar.Value = Vy;
+        }
+
+        private void ClearAngDisp_Click(object sender, EventArgs e)
+        {
+            string zero = "0";
+            LabYaw.Text = zero;
+            LabRoll.Text = zero;
+            LabPitch.Text = zero;
+            LabDist.Text = zero;
+            Infotext.Text = "数据清除成功";
+        }
+
+        private void MemTimer_Tick(object sender, EventArgs e)
+        {
+            double usemem = Process.GetCurrentProcess().PrivateMemorySize64 / 1024.0 / 1024.0;
+            label41.Text = $"{usemem:F1}M";
+            if (usemem > 200)
+            {
+                var result = MessageBox.Show(this, $"内存占用已达 {usemem:F0}MB，是否关闭应用？", "内存警告", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                if (result == DialogResult.Yes)
+                    Application.Exit();
+            }
+        }
+
+        private void SaveData_CheckedChanged(object sender, EventArgs e)
+        {
+            if (SaveData.Checked)
+            {
+                DialogResult dr = openFileDialog1.ShowDialog();
+                if (dr == DialogResult.OK)
+                {
+                    _logger.Open(openFileDialog1.FileName);
+                }
+                else
+                    SaveData.CheckState = CheckState.Unchecked;
+            }
+            else
+            {
+                _logger.Close();
+            }
+        }
+
+        private void Port_TextChanged(object sender, EventArgs e)
+        {
+            Port.Text = Utils.ValidatePortInput(Port.Text);
+        }
+
+        private void RealDist_TextChanged(object sender, EventArgs e)
+        {
+            string buf = RealDist.Text.Replace(" ", string.Empty);
+            if (buf != "." && float.TryParse(buf, out float dist))
+            {
+                _mapTracker.SetCalibratedDistance(dist);
+                Infotext.Text = "dist:" + dist;
+            }
+        }
+
+        private void UpperApp_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            _configStorage.SaveSync(CollectCurrentSettings());
+
+            _receivePipeline.Dispose();
+
+            _deviceService.DisposeAll();
+
+            (_logger as IDisposable)?.Dispose();
+        }
+
+        private void LabDist_TextChanged(object sender, EventArgs e)
+        {
+            _mapTracker.OnDistanceChanged(LabDist.Text, LabYaw.Text, (msg) => RecvBox.AppendText(msg));
+        }
+
+        private void Info_DoubleClick(object sender, EventArgs e)
+        {
+            MessageBox.Show(this, ("Project Version " + prover + " By ClockSR\r\n                                       2018.8.25"), Text);
+        }
+
+        private void Btn_Click(int i)
+        {
+            string text = texts[i].Text;
+            if (string.IsNullOrWhiteSpace(text)) return;
+
+            string sendStr;
+            if (checks[i].Checked)
+            {
+                sendStr = Utils.HexStringToString(text);
+                if (sendStr == null)
+                {
+                    MessageBox.Show(this, "请将每字节间以空格分开");
+                    return; // 转换失败，不发送
+                }
+            }
+            else
+            {
+                sendStr = text;
+            }
+            StrSend(sendStr);
+        }
+
+        private void OpenImage_Click(object sender, EventArgs e)
+        {
+            DialogResult dr = openFileDialog1.ShowDialog();
+            if (dr == DialogResult.OK)
+            {
+                try
+                {
+                    Image image = Image.FromFile(@openFileDialog1.FileName);
+                    MapBox.BackgroundImage = image;
+                    _mapTracker.SetAspectRatio(image.Height / MapBox.Height / (float)(image.Width / MapBox.Width));
+                }
+                catch
+                {
+                    MessageBox.Show(this, "请选择图片文件！", "Warning");
+                }
+            }
+        }
+
+        private void MapBox_MouseMove(object sender, MouseEventArgs e)
+        {
+            _mapTracker.OnMouseMove(e.Location);
+            label38.Text = _mapTracker.GetMousePosition(e.Location);
+        }
+
+        private void ClearImage_Click(object sender, EventArgs e)
+        {
+            _mapTracker.Clear();
+            label34.Text = label36.Text = "0,0";
+        }
+
+        private void MapBox_Click(object sender, EventArgs e)
+        {
+            Point p = MapBox.PointToClient(MousePosition);
+            _mapTracker.OnMapClick(p, (msg) => RecvBox.AppendText(msg));
+            label34.Text = _mapTracker.StartPoint;
+            label36.Text = _mapTracker.EndPoint;
+        }
+
+        private void UpperApp_Move(object sender, EventArgs e)
+        {
+            Utils.SnapToScreenEdge(this);
+        }
+
+        private async void BthDeviceScanBtn_Click(object sender, EventArgs e)
+        {
+            if (!BthDeviceScanBtn.Enabled) return;
+            BthDeviceScanBtn.Enabled = false;
+            BthDeviceScanBtn.Text = "扫描中";
+            try
+            {
+                List<BluetoothDeviceInfo> devices = await _deviceService.DiscoverBluetoothDevicesAsync();
+                BthDeviceList.Items.Clear();
+                foreach (var device in devices)
+                {
+                    if (!BthDeviceList.Items.Contains(device.DeviceName))
+                        BthDeviceList.Items.Add(device.DeviceName);
+                }
+                BthRecvBox.AppendText($"扫描完成，发现 {devices.Count} 个设备。\r\n");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, $"扫描失败: {ex.Message}");
+            }
+            finally
+            {
+                BthDeviceScanBtn.Enabled = true;
+                BthDeviceScanBtn.Text = "扫描蓝牙";
+            }
+        }
+
+        private void RbtnSerial_CheckedChanged(object sender, EventArgs e)
+        {
+            if (rbtnSerial.Checked) _deviceService.ActiveChannel = ChannelType.Serial;
+        }
+
+        private void RbtnNET_CheckedChanged(object sender, EventArgs e)
+        {
+            if (rbtnNET.Checked)
+            {
+                _deviceService.ActiveChannel = NetType.Text == "TCP" ? ChannelType.TCP : ChannelType.UDP;
+                Peer.DataSource = _deviceService.GetPeerList(_deviceService.ActiveChannel);
+            }
+        }
+
+        private void RbtnBluetooth_CheckedChanged(object sender, EventArgs e)
+        {
+            if (rbtnBluetooth.Checked)
+            {
+                _deviceService.ActiveChannel = ChannelType.Bluetooth;
+                Peer.DataSource = null; // 蓝牙有自己的对端下拉列表
+            }
+        }
+    }//public partial class Form1 : Form
+}//namespace WindowsFormsApp1

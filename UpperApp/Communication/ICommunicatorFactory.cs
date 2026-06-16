@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.Versioning;
 using UpperApp.Core;
 
@@ -16,9 +16,9 @@ namespace UpperApp.Communication
         {
             return channel switch
             {
-                ChannelType.Serial => new SerManager(),
-                ChannelType.TCP => new TCPManager(),     // 直接使用原生管理器，不再用 Adapter
-                ChannelType.UDP => new UDPManager(),
+                ChannelType.Serial => new TouchSocketSerialAdapter(),
+                ChannelType.TCP => new TouchSocketTcpAdapter(),
+                ChannelType.UDP => new TouchSocketUdpAdapter(),
                 ChannelType.Bluetooth => new BthManager(),
                 ChannelType.CAN => new CANManager(),
                 ChannelType.WebSocket => new WebSocketManager(),

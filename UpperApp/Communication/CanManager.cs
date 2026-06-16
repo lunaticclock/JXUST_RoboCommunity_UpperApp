@@ -1,25 +1,53 @@
 using Peak.Can.Basic;
 using System;
 using System.Collections.Generic;
+using System.Runtime.Versioning;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using UpperApp.Core;
+using UpperApp.Services;
 
 namespace UpperApp.Communication
 {
-    internal class CANManager : BaseCommunicationManager
+    [SupportedOSPlatform("windows10.0.19041.0")]
+    internal class CANManager : ICommunicator
     {
         private PcanChannel _pcanChannel;
         private readonly BindingDic<string> _canDevices = new();
+        private CancellationTokenSource _cts;
+        private bool _isMonitoring;
+        private bool _isStopping;
+        private DeviceState _state = DeviceState.Disconnected;
+        private readonly Encoding _encoding = Encoding.GetEncoding("GB2312");
 
-        public CANManager() : base(ChannelType.CAN) { }
+        public event Action<Result> StatusChanged;
+        public ChannelType Channel => ChannelType.CAN;
 
-        public override void Start(CommunicationParams parameters)
+        public DeviceState State
+        {
+            get => _state;
+            private set
+            {
+                if (_state != value)
+                    _state = value;
+            }
+        }
+
+        static CANManager()
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        }
+
+        public void Start(CommunicationParams parameters)
         {
             if (parameters is not CanParams canParams)
                 throw new ArgumentException("参数类型必须为 CanParams");
 
-            StartCore();
+            Stop();
+            State = DeviceState.Connecting;
+            _cts = new CancellationTokenSource();
+            _isStopping = false;
 
             if (!Enum.TryParse(canParams.ChannelName, true, out _pcanChannel))
             {
@@ -28,7 +56,6 @@ namespace UpperApp.Communication
                 return;
             }
 
-            // 使用新 API 初始化
             var status = Api.Initialize(_pcanChannel, Bitrate.Pcan500);
             if (status != PcanStatus.OK)
             {
@@ -37,17 +64,31 @@ namespace UpperApp.Communication
                 return;
             }
 
-            // 启动接收任务
             _ = ReceiveLoopAsync(_cts.Token);
+            State = DeviceState.Connected;
             OnStatusChanged(new Result(Result.NETStatus.MonitorStart, $"CAN 通道 {canParams.ChannelName} 启动"));
+            _isMonitoring = true;
         }
 
-        protected override void OnStopping()
+        public void Stop()
         {
+            if (!_isMonitoring && _state == DeviceState.Disconnected) return;
+
+            _isStopping = true;
+            State = DeviceState.Disconnecting;
+            _isMonitoring = false;
+            _cts?.Cancel();
+            _cts?.Dispose();
+            _cts = null;
+
             if (_pcanChannel != 0)
             {
                 try { Api.Uninitialize(_pcanChannel); } catch { }
             }
+
+            OnStatusChanged(new Result(Result.NETStatus.MonitorStop, "CAN 已停止"));
+            State = DeviceState.Disconnected;
+            _isStopping = false;
         }
 
         private async Task ReceiveLoopAsync(CancellationToken token)
@@ -79,15 +120,16 @@ namespace UpperApp.Communication
             catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                OnStatusChanged(new Result(Result.NETStatus.ExceptionStop, $"接收循环异常: {ex.Message}"));
+                if (!_isStopping)
+                    OnStatusChanged(new Result(Result.NETStatus.ExceptionStop, $"接收循环异常: {ex.Message}"));
             }
             finally
             {
-                if (_isMonitoring) Stop();
+                if (_isMonitoring && !_isStopping) Stop();
             }
         }
 
-        public override void Send(string data, string target = null)
+        public void Send(string data, string target = null)
         {
             if (string.IsNullOrWhiteSpace(data))
                 return;
@@ -142,6 +184,22 @@ namespace UpperApp.Communication
             return errText;
         }
 
-        public override IReadOnlyList<string> GetPeerList() => _canDevices.connectionKeys;
+        public IReadOnlyList<string> GetPeerList() => _canDevices.connectionKeys;
+
+        public ValueTask DisposeAsync()
+        {
+            Stop();
+            GC.SuppressFinalize(this);
+            return ValueTask.CompletedTask;
+        }
+
+        private void OnStatusChanged(Result result)
+        {
+            if (result.Channel == ChannelType.Unknown)
+                result = result with { Channel = ChannelType.CAN };
+            if (result.NetStatus == Result.NETStatus.ExceptionStop)
+                State = DeviceState.Error;
+            StatusChanged?.Invoke(result);
+        }
     }
 }

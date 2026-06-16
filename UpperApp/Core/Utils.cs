@@ -8,7 +8,7 @@ using System.Net.Sockets;
 using System.Runtime.Versioning;
 using System.Text;
 
-namespace UpperApp
+namespace UpperApp.Core
 {
     [SupportedOSPlatform("windows10.0.19041.0")]
     public static class Utils

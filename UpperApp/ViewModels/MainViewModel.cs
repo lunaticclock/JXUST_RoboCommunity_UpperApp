@@ -18,10 +18,10 @@ using UpperApp.UI;
 namespace UpperApp.ViewModels
 {
     [SupportedOSPlatform("windows10.0.19041.0")]
-    internal class MainViewModel : ViewModelBase, IDisplayAdapter
+    internal class MainViewModel : ViewModelBase
     {
-        private readonly ILogger _logger = new FileLogger();
-        private MessageProcessor _msgProcessor;
+        private readonly FileLogger _logger = new();
+        private readonly MessageProcessor _msgProcessor;
         private readonly DeviceService _deviceService;
         private readonly DataPipeline _receivePipeline;
         private readonly IConfigStorage _configStorage;
@@ -52,7 +52,7 @@ namespace UpperApp.ViewModels
         public string MemUsage { get => _memUsage; set => SetField(ref _memUsage, value); }
 
         // Serial
-        private ObservableCollection<string> _serialPorts = new();
+        private ObservableCollection<string> _serialPorts = [];
         public ObservableCollection<string> SerialPorts { get => _serialPorts; set => SetField(ref _serialPorts, value); }
 
         private string _selectedSerialPort = "";
@@ -61,7 +61,7 @@ namespace UpperApp.ViewModels
         private string _selectedBaudRate = "115200";
         public string SelectedBaudRate { get => _selectedBaudRate; set => SetField(ref _selectedBaudRate, value); }
 
-        public ObservableCollection<string> BaudRates { get; } = new() { "9600", "19200", "38400", "115200", "256000", "460800", "512000", "921600" };
+        public ObservableCollection<string> BaudRates { get; } = ["9600", "19200", "38400", "115200", "256000", "460800", "512000", "921600"];
 
         private string _serialButtonText = "打开串口";
         public string SerialButtonText { get => _serialButtonText; set => SetField(ref _serialButtonText, value); }
@@ -71,7 +71,7 @@ namespace UpperApp.ViewModels
         public bool IsSerialConfigEnabled => !_isSerialOpen;
 
         // Network
-        private ObservableCollection<string> _localIPs = new();
+        private ObservableCollection<string> _localIPs = [];
         public ObservableCollection<string> LocalIPs { get => _localIPs; set => SetField(ref _localIPs, value); }
 
         private string _selectedHostIP = "";
@@ -91,7 +91,7 @@ namespace UpperApp.ViewModels
             }
         }
 
-        public ObservableCollection<string> NetTypes { get; } = new() { "TCP", "UDP" };
+        public ObservableCollection<string> NetTypes { get; } = ["TCP", "UDP"];
 
         private string _listenButtonText = "开始监听";
         public string ListenButtonText { get => _listenButtonText; set => SetField(ref _listenButtonText, value); }
@@ -100,11 +100,11 @@ namespace UpperApp.ViewModels
         public bool IsNetListening { get => _isNetListening; set { if (SetField(ref _isNetListening, value)) OnPropertyChanged(nameof(IsNetConfigEnabled)); } }
         public bool IsNetConfigEnabled => !_isNetListening;
 
-        private ObservableCollection<string> _peerList = new();
+        private ObservableCollection<string> _peerList = [];
         public ObservableCollection<string> PeerList { get => _peerList; set => SetField(ref _peerList, value); }
 
         private string _selectedPeer = "";
-        public string SelectedPeer { get => _selectedPeer; set => SetField(ref _selectedPeer, value); }
+        public string SelectedPeer { get => _selectedPeer; set { if (SetField(ref _selectedPeer, value)) _deviceService.SetTarget(value); } }
 
         // Bluetooth
         private string _bthListenButtonText = "监听";
@@ -119,17 +119,17 @@ namespace UpperApp.ViewModels
         private string _bthScanButtonText = "扫描蓝牙";
         public string BthScanButtonText { get => _bthScanButtonText; set => SetField(ref _bthScanButtonText, value); }
 
-        private ObservableCollection<string> _bthDeviceList = new();
+        private ObservableCollection<string> _bthDeviceList = [];
         public ObservableCollection<string> BthDeviceList { get => _bthDeviceList; set => SetField(ref _bthDeviceList, value); }
 
         private string _selectedBthDevice = "";
         public string SelectedBthDevice { get => _selectedBthDevice; set => SetField(ref _selectedBthDevice, value); }
 
-        private ObservableCollection<string> _bthSlaveList = new();
+        private ObservableCollection<string> _bthSlaveList = [];
         public ObservableCollection<string> BthSlaveList { get => _bthSlaveList; set => SetField(ref _bthSlaveList, value); }
 
         private string _selectedBthSlave = "";
-        public string SelectedBthSlave { get => _selectedBthSlave; set => SetField(ref _selectedBthSlave, value); }
+        public string SelectedBthSlave { get => _selectedBthSlave; set { if (SetField(ref _selectedBthSlave, value)) _deviceService.SetBluetoothTarget(value); } }
 
         private string _bthConnectButtonText = "连接";
         public string BthConnectButtonText { get => _bthConnectButtonText; set => SetField(ref _bthConnectButtonText, value); }
@@ -242,7 +242,7 @@ namespace UpperApp.ViewModels
         public bool AngleDisplayEnabled { get => _angleDisplayEnabled; set => SetField(ref _angleDisplayEnabled, value); }
 
         // Batch messages
-        public ObservableCollection<PresetMessageViewModel> PresetMessages { get; } = new();
+        public ObservableCollection<PresetMessageViewModel> PresetMessages { get; } = [];
 
         // Map
         private string _mapStartPoint = "0,0";
@@ -286,7 +286,7 @@ namespace UpperApp.ViewModels
             _deviceService.StatusChanged += UnifiedStatusChanged;
             _deviceService.ActiveChannel = ChannelType.Serial;
 
-            _msgProcessor = new MessageProcessor(this, _logger);
+            _msgProcessor = new MessageProcessor(_logger);
             _receivePipeline = new DataPipeline(DispatchReceivedData);
             _receivePipeline.Start();
 
@@ -341,41 +341,6 @@ namespace UpperApp.ViewModels
             RecvText = newValue;
         }
 
-        #region IDisplayAdapter
-
-        void IDisplayAdapter.UpdateByteCount(int count, RecvOrSend direction)
-        {
-            if (direction == RecvOrSend.Recv)
-            {
-                _rxCount += count;
-                RxCount = _rxCount.ToString();
-            }
-            else
-            {
-                _txCount += count;
-                TxCount = _txCount.ToString();
-            }
-        }
-
-        bool IDisplayAdapter.IsCharMode => IsCharMode;
-        bool IDisplayAdapter.IsHexMode => IsHexMode;
-        bool IDisplayAdapter.IsLocalEchoEnabled => LocalEcho;
-        bool IDisplayAdapter.IsAngleDisplayEnabled => AngleDisplayEnabled;
-        bool IDisplayAdapter.IsSaveDataEnabled => SaveDataEnabled;
-        void IDisplayAdapter.AppendToReceiveBox(string text) => RecvText += text;
-        void IDisplayAdapter.UpdateAngleDisplay(string message) => SetAngDisp(message);
-        void IDisplayAdapter.OnNewPeer(string peerInfo)
-        {
-            var peers = _deviceService.GetPeerList(_deviceService.ActiveChannel);
-            Application.Current.Dispatcher.BeginInvoke(() =>
-            {
-                PeerList.Clear();
-                foreach (var p in peers) PeerList.Add(p);
-            });
-        }
-
-        #endregion
-
         private void UnifiedStatusChanged(Result status)
         {
             Application.Current.Dispatcher.BeginInvoke(() =>
@@ -386,7 +351,19 @@ namespace UpperApp.ViewModels
                         _receivePipeline.TryEnqueue(status);
                         break;
                     case Result.NETStatus.SendMessage:
-                        _msgProcessor.ProcessSentMessage(status);
+                        var sent = _msgProcessor.ProcessSentMessage(status);
+                        if (sent != null)
+                        {
+                            _txCount += sent.ByteCount;
+                            TxCount = _txCount.ToString();
+                            if (LocalEcho)
+                            {
+                                string displayContent = IsHexMode
+                                    ? Utils.StringToHexString(sent.RawContent)
+                                    : sent.FormattedContent;
+                                AppendRecvText(displayContent);
+                            }
+                        }
                         break;
                     case Result.NETStatus.ExceptionStop:
                         _logger.WriteLine($"[{Utils.GetTime()}] ExceptionStop [{status.Channel}]: {status.Message}");
@@ -448,7 +425,34 @@ namespace UpperApp.ViewModels
 
         private void DispatchReceivedData(Result result)
         {
-            Application.Current.Dispatcher.BeginInvoke(() => _msgProcessor.ProcessReceivedMessage(result));
+            var processed = _msgProcessor.ProcessReceivedMessage(result);
+            if (processed == null) return;
+
+            Application.Current.Dispatcher.BeginInvoke(() =>
+            {
+                if (!string.IsNullOrEmpty(processed.NewPeerHint))
+                    AppendRecvText(processed.NewPeerHint);
+
+                if (!string.IsNullOrEmpty(processed.Prefix))
+                    AppendRecvText(processed.Prefix);
+
+                string displayContent = IsHexMode
+                    ? Utils.StringToHexString(processed.RawContent)
+                    : processed.FormattedContent;
+                AppendRecvText(displayContent);
+
+                _rxCount += processed.ByteCount;
+                RxCount = _rxCount.ToString();
+
+                if (LocalEcho)
+                    AppendRecvText(displayContent);
+
+                if (SaveDataEnabled && !string.IsNullOrEmpty(processed.RawContent))
+                    _logger.WriteLine($"[{Utils.GetTime()}] DATA: {processed.RawContent.TrimEnd()}");
+
+                if (AngleDisplayEnabled && processed.HasAttitudeData)
+                    SetAngDisp(processed.AttitudeRaw);
+            });
         }
 
         private void UpdateMonitorUI(Result status)
@@ -816,7 +820,7 @@ namespace UpperApp.ViewModels
                 TcpConfig = new TcpServerParams { LocalIP = SelectedHostIP, Port = int.TryParse(Port, out int tcpPort) ? tcpPort : 1234 },
                 UdpConfig = new UdpParams { LocalIP = SelectedHostIP, Port = int.TryParse(Port, out int udpPort) ? udpPort : 1234 },
                 BthConfig = new BluetoothParams { IsServerMode = true },
-                PresetMessages = new List<PresetMessage>(),
+                PresetMessages = [],
                 CalibratedDistance = float.TryParse(CalibratedDistance, out float dist) ? dist : 1.0f
             };
             foreach (var pm in PresetMessages)

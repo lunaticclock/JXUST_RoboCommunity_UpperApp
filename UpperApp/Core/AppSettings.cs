@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using UpperApp.Communication;
 using UpperApp.Core;
 
-namespace UpperApp
+namespace UpperApp.Core
 {
     /// <summary>
     /// 应用程序持久化配置

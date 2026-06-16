@@ -1,12 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.Versioning;
-using System.Text;
 using UpperApp.Communication;
 using UpperApp.Core;
-using UpperApp.Services;
 
-namespace UpperApp
+namespace UpperApp.Services
 {
     /// <summary>
     /// 简易服务定位器（手动实现轻量级 IoC）
@@ -55,15 +53,9 @@ namespace UpperApp
             var factory = new CommunicatorFactory();
             RegisterSingleton<ICommunicatorFactory>(factory);
             RegisterSingleton<IConfigStorage>(new JsonFileConfigStorage());
-            var communicators = new Dictionary<ChannelType, ICommunicator>();
-            foreach (ChannelType ch in Enum.GetValues(typeof(ChannelType)))
-            {
-                if (ch == ChannelType.Unknown) continue;
-                var comm = factory.Create(ch);
-                communicators[ch] = comm;
-            }
-            var bluetoothComm = (IBluetoothCommunicator)communicators[ChannelType.Bluetooth];
-            var deviceService = new DeviceService(communicators, bluetoothComm);
+
+            var bluetoothComm = (IBluetoothCommunicator)factory.Create(ChannelType.Bluetooth);
+            var deviceService = new DeviceService(factory, bluetoothComm);
             RegisterSingleton(deviceService);
         }
     }

@@ -3,29 +3,56 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.WebSockets;
+using System.Runtime.Versioning;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using UpperApp.Core;
+using UpperApp.Services;
 
 namespace UpperApp.Communication
 {
-    internal class WebSocketManager : BaseCommunicationManager
+    [SupportedOSPlatform("windows10.0.19041.0")]
+    internal class WebSocketManager : ICommunicator
     {
         private HttpListener _listener;
         private readonly BindingDic<WebSocket> _serverClients = new();
         private ClientWebSocket _clientSocket;
         private bool _isClientMode;
-        private string _clientTarget; // 客户端模式下，保存远程标识
+        private string _clientTarget;
+        private CancellationTokenSource _cts;
+        private bool _isMonitoring;
+        private bool _isStopping;
+        private DeviceState _state = DeviceState.Disconnected;
+        private readonly Encoding _encoding = Encoding.GetEncoding("GB2312");
 
-        public WebSocketManager() : base(ChannelType.WebSocket) { }
+        public event Action<Result> StatusChanged;
+        public ChannelType Channel => ChannelType.WebSocket;
 
-        public override void Start(CommunicationParams parameters)
+        public DeviceState State
+        {
+            get => _state;
+            private set
+            {
+                if (_state != value)
+                    _state = value;
+            }
+        }
+
+        static WebSocketManager()
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        }
+
+        public void Start(CommunicationParams parameters)
         {
             if (parameters is not WebSocketParams wsParams)
                 throw new ArgumentException("参数类型必须为 WebSocketParams");
 
-            StartCore();
+            Stop();
+            State = DeviceState.Connecting;
+            _cts = new CancellationTokenSource();
+            _isStopping = false;
 
             if (wsParams.IsServerMode)
             {
@@ -46,7 +73,9 @@ namespace UpperApp.Communication
             }
             _listener.Start();
             _ = AcceptLoopAsync(_cts.Token);
+            State = DeviceState.Connected;
             OnStatusChanged(new Result(Result.NETStatus.MonitorStart, $"WebSocket 监听 {url}"));
+            _isMonitoring = true;
         }
 
         private async Task ConnectAsync(string serverUrl)
@@ -58,7 +87,9 @@ namespace UpperApp.Communication
                 await _clientSocket.ConnectAsync(new Uri(serverUrl), _cts.Token);
                 _clientTarget = serverUrl;
                 _ = ReceiveLoopAsync(_clientSocket, "Server", _cts.Token);
+                State = DeviceState.Connected;
                 OnStatusChanged(new Result(Result.NETStatus.MonitorStart, $"WebSocket 客户端已连接 {serverUrl}"));
+                _isMonitoring = true;
             }
             catch (Exception ex)
             {
@@ -128,12 +159,22 @@ namespace UpperApp.Communication
                 if (!_isClientMode)
                     _serverClients.Remove(clientId);
                 socket.Dispose();
-                OnStatusChanged(new Result(Result.NETStatus.RemoteStop, clientId));
+                if (!_isStopping)
+                    OnStatusChanged(new Result(Result.NETStatus.RemoteStop, clientId));
             }
         }
 
-        protected override void OnStopping()
+        public void Stop()
         {
+            if (!_isMonitoring && _state == DeviceState.Disconnected) return;
+
+            _isStopping = true;
+            State = DeviceState.Disconnecting;
+            _isMonitoring = false;
+            _cts?.Cancel();
+            _cts?.Dispose();
+            _cts = null;
+
             try { _listener?.Stop(); } catch { }
             _listener = null;
 
@@ -148,9 +189,13 @@ namespace UpperApp.Communication
             }
             try { _clientSocket?.Dispose(); } catch { }
             _clientSocket = null;
+
+            OnStatusChanged(new Result(Result.NETStatus.MonitorStop, "WebSocket 已停止"));
+            State = DeviceState.Disconnected;
+            _isStopping = false;
         }
 
-        public override void Send(string data, string target = null)
+        public void Send(string data, string target = null)
         {
             if (_isClientMode)
             {
@@ -171,7 +216,7 @@ namespace UpperApp.Communication
                     OnStatusChanged(new Result(Result.NETStatus.ExceptionStop, $"发送失败: {ex.Message}", 0, _clientTarget));
                 }
             }
-            else // 服务器模式
+            else
             {
                 if (string.IsNullOrEmpty(target))
                 {
@@ -201,10 +246,26 @@ namespace UpperApp.Communication
             }
         }
 
-        public override IReadOnlyList<string> GetPeerList()
+        public IReadOnlyList<string> GetPeerList()
         {
             if (_isClientMode) return [];
             return _serverClients.connectionKeys;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Stop();
+            GC.SuppressFinalize(this);
+            return ValueTask.CompletedTask;
+        }
+
+        private void OnStatusChanged(Result result)
+        {
+            if (result.Channel == ChannelType.Unknown)
+                result = result with { Channel = ChannelType.WebSocket };
+            if (result.NetStatus == Result.NETStatus.ExceptionStop)
+                State = DeviceState.Error;
+            StatusChanged?.Invoke(result);
         }
     }
 }

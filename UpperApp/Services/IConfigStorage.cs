@@ -2,8 +2,9 @@ using System;
 using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
+using UpperApp.Core;
 
-namespace UpperApp
+namespace UpperApp.Services
 {
     internal interface IConfigStorage
     {

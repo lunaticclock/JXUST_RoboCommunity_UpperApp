@@ -10,12 +10,19 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using UpperApp.Core;
+using UpperApp.Services;
 
 namespace UpperApp.Communication
 {
     [SupportedOSPlatform("windows10.0.19041.0")]
-    internal class BthManager : BaseCommunicationManager, IBluetoothCommunicator
+    internal class BthManager : ICommunicator, IBluetoothCommunicator
     {
+        private CancellationTokenSource _cts;
+        private bool _isMonitoring;
+        private bool _isStopping;
+        private DeviceState _state = DeviceState.Disconnected;
+        private readonly Encoding _encoding = Encoding.GetEncoding("GB2312");
+
         public BluetoothRadio Br { get; private set; }
         private BluetoothListener _listener;
         private BluetoothClient _manualClient;
@@ -27,17 +34,38 @@ namespace UpperApp.Communication
         public string RadioAddress => Br?.LocalAddress.ToString() ?? "";
         public string RadioMode => Br?.Mode.ToString() ?? "";
 
-        public BthManager() : base(ChannelType.Bluetooth)
+        public event Action<Result> StatusChanged;
+        public ChannelType Channel => ChannelType.Bluetooth;
+
+        public DeviceState State
+        {
+            get => _state;
+            private set
+            {
+                if (_state != value)
+                    _state = value;
+            }
+        }
+
+        static BthManager()
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        }
+
+        public BthManager()
         {
             Br = BluetoothRadio.Default;
         }
 
-        public override void Start(CommunicationParams parameters)
+        public void Start(CommunicationParams parameters)
         {
             if (parameters is not BluetoothParams btParams)
                 throw new ArgumentException("参数类型必须为 BluetoothParams");
 
-            StartCore();
+            Stop();
+            State = DeviceState.Connecting;
+            _cts = new CancellationTokenSource();
+            _isStopping = false;
 
             if (btParams.IsServerMode)
             {
@@ -47,7 +75,6 @@ namespace UpperApp.Communication
             }
             else
             {
-                // 客户端模式，主动连接指定设备
                 if (string.IsNullOrEmpty(btParams.TargetDeviceName))
                 {
                     OnStatusChanged(new Result(Result.NETStatus.ExceptionStop, "未指定要连接的蓝牙设备名称"));
@@ -56,10 +83,23 @@ namespace UpperApp.Communication
                 }
                 SetMaster(btParams.TargetDeviceName);
             }
+
+            State = DeviceState.Connected;
+            OnStatusChanged(new Result(Result.NETStatus.MonitorStart, "蓝牙监听开始"));
+            _isMonitoring = true;
         }
 
-        protected override void OnStopping()
+        public void Stop()
         {
+            if (!_isMonitoring && _state == DeviceState.Disconnected) return;
+
+            _isStopping = true;
+            State = DeviceState.Disconnecting;
+            _isMonitoring = false;
+            _cts?.Cancel();
+            _cts?.Dispose();
+            _cts = null;
+
             try { _listener?.Stop(); } catch { }
             _listener = null;
             foreach (string key in BthClients.connectionKeys.ToArray())
@@ -68,6 +108,10 @@ namespace UpperApp.Communication
             }
             try { _manualClient?.Dispose(); } catch { }
             _manualClient = null;
+
+            OnStatusChanged(new Result(Result.NETStatus.MonitorStop, "蓝牙已停止"));
+            State = DeviceState.Disconnected;
+            _isStopping = false;
         }
 
         private async Task AcceptLoopAsync(CancellationToken token)
@@ -129,11 +173,12 @@ namespace UpperApp.Communication
             {
                 BthClients.Remove(deviceName);
                 client.Close();
-                OnStatusChanged(new Result(Result.NETStatus.RemoteStop, deviceName));
+                if (!_isStopping)
+                    OnStatusChanged(new Result(Result.NETStatus.RemoteStop, deviceName));
             }
         }
 
-        public override void Send(string data, string target = null)
+        public void Send(string data, string target = null)
         {
             BluetoothClient client = target == null ? _manualClient : GetSlaveClient(target);
             if (client == null || !client.Connected)
@@ -201,6 +246,22 @@ namespace UpperApp.Communication
             });
         }
 
-        public override IReadOnlyList<string> GetPeerList() => BthClients.connectionKeys;
+        public IReadOnlyList<string> GetPeerList() => BthClients.connectionKeys;
+
+        public ValueTask DisposeAsync()
+        {
+            Stop();
+            GC.SuppressFinalize(this);
+            return ValueTask.CompletedTask;
+        }
+
+        private void OnStatusChanged(Result result)
+        {
+            if (result.Channel == ChannelType.Unknown)
+                result = result with { Channel = ChannelType.Bluetooth };
+            if (result.NetStatus == Result.NETStatus.ExceptionStop)
+                State = DeviceState.Error;
+            StatusChanged?.Invoke(result);
+        }
     }
 }

@@ -70,19 +70,6 @@
     <SolidColorBrush x:Key="StatusOfflineBrush" Color="{StaticResource StatusOffline}"/>
     <SolidColorBrush x:Key="StatusWarningBrush" Color="{StaticResource StatusWarning}"/>
 
-    <!-- ===== 阴影效果 (必须在样式之前定义) ===== -->
-    <DropShadowEffect x:Key="DropShadowEffect"
-                      Color="Black"
-                      ShadowDepth="0"
-                      BlurRadius="16"
-                      Opacity="0.4"/>
-
-    <DropShadowEffect x:Key="GlowBlueEffect"
-                      Color="{StaticResource AccentBlueGlow}"
-                      ShadowDepth="0"
-                      BlurRadius="12"
-                      Opacity="0.4"/>
-
     <!-- ===== 全局字体 ===== -->
     <FontFamily x:Key="FontMono">Cascadia Code, Consolas, monospace</FontFamily>
     <FontFamily x:Key="FontUI">Microsoft YaHei UI, Segoe UI, sans-serif</FontFamily>
@@ -173,7 +160,7 @@
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource BorderDefaultBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Padding" Value="15,8"/>
+        <Setter Property="Padding" Value="16,8"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="Medium"/>
         <Setter Property="Cursor" Value="Hand"/>
@@ -232,7 +219,7 @@
 
     <Style x:Key="SuccessButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
         <Setter Property="Background" Value="{StaticResource AccentGreenBrush}"/>
-        <Setter Property="Foreground" Value="{StaticResource BgDeepBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource BgDeep}"/>
         <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Style.Triggers>
@@ -269,8 +256,7 @@
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource BorderDefaultBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Padding" Value="10,0"/>
-        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Padding" Value="10,8"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="CaretBrush" Value="{StaticResource AccentBlueBrush}"/>
         <Setter Property="SelectionBrush" Value="{StaticResource AccentBlueBrush}"/>
@@ -282,15 +268,12 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="6"
-                            Padding="{TemplateBinding Padding}"
-                            TextElement.Foreground="{TemplateBinding Foreground}">
+                            CornerRadius="6">
                         <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="{TemplateBinding Padding}"
                                       Focusable="False"
                                       HorizontalScrollBarVisibility="Hidden"
-                                      VerticalScrollBarVisibility="Hidden"
-                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
-                                      Background="{x:Null}"/>
+                                      VerticalScrollBarVisibility="Hidden"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsFocused" Value="True">
@@ -318,10 +301,8 @@
     </Style>
 
     <Style x:Key="MonoTextBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-        <Setter Property="Padding" Value="10,4"/>
         <Setter Property="FontFamily" Value="{StaticResource FontMono}"/>
         <Setter Property="FontSize" Value="12"/>
-        <Setter Property="VerticalContentAlignment" Value="Top"/>
     </Style>
 
     <!-- ===== ComboBox 样式 ===== -->
@@ -602,9 +583,9 @@
                                     Background="{StaticResource BgSecondaryBrush}"
                                     CornerRadius="6,6,0,0"
                                     Margin="-12,-12,-12,8"
-                                    Padding="12,8"
-                                    TextElement.Foreground="{StaticResource AccentBlueBrush}">
-                                <ContentPresenter ContentSource="Header"/>
+                                    Padding="12,8">
+                                <ContentPresenter ContentSource="Header"
+                                                  TextElement.Foreground="{StaticResource AccentBlueBrush}"/>
                             </Border>
                             <ContentPresenter Grid.Row="1"/>
                         </Grid>
@@ -671,5 +652,18 @@
         <Setter Property="Height" Value="8"/>
         <Setter Property="Fill" Value="{StaticResource StatusOfflineBrush}"/>
     </Style>
+
+    <!-- ===== 阴影效果 ===== -->
+    <DropShadowEffect x:Key="DropShadowEffect"
+                      Color="Black"
+                      ShadowDepth="0"
+                      BlurRadius="16"
+                      Opacity="0.4"/>
+
+    <DropShadowEffect x:Key="GlowBlueEffect"
+                      Color="{StaticResource AccentBlueGlow}"
+                      ShadowDepth="0"
+                      BlurRadius="12"
+                      Opacity="0.4"/>
 
 </ResourceDictionary>

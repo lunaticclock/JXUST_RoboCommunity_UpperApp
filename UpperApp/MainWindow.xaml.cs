@@ -12,6 +12,7 @@ namespace UpperApp
         public MainWindow()
         {
             InitializeComponent();
+            DataContext = new MainViewModel();
             Loaded += MainWindow_Loaded;
         }
 

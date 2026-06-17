@@ -22,14 +22,8 @@ namespace UpperApp.Communication
         private string _clientTarget;
         private CancellationTokenSource _cts;
         private bool _isMonitoring;
-        private readonly Encoding _encoding = Encoding.GetEncoding("GB2312");
 
         public override ChannelType Channel => ChannelType.WebSocket;
-
-        static WebSocketManager()
-        {
-            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        }
 
         public override void Start(CommunicationParams parameters)
         {
@@ -212,6 +206,58 @@ namespace UpperApp.Communication
                         byte[] buffer = Encoding.UTF8.GetBytes(data);
                         socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, _cts.Token).Wait();
                         NotifyMessageSent(data, buffer.Length, target);
+                    }
+                    catch (Exception ex)
+                    {
+                        NotifyException($"发送到 {target} 失败: {ex.Message}", target);
+                        _serverClients.Remove(target)?.Dispose();
+                        NotifyPeerDisconnected("发送失败导致断开", target);
+                    }
+                }
+                else
+                {
+                    NotifyMessageSendError($"未找到客户端标识: {target}");
+                }
+            }
+        }
+
+        public override void Send(byte[] data, string target = null)
+        {
+            if (data == null || data.Length == 0)
+            {
+                NotifyMessageSendAlert("未发出信息!");
+                return;
+            }
+            if (_isClientMode)
+            {
+                if (_clientSocket == null || _clientSocket.State != WebSocketState.Open)
+                {
+                    NotifyMessageSendError("WebSocket 客户端未连接");
+                    return;
+                }
+                try
+                {
+                    _clientSocket.SendAsync(new ArraySegment<byte>(data), WebSocketMessageType.Binary, true, _cts.Token).Wait();
+                    NotifyMessageSent(Utils.BytesToHexString(data), data.Length, _clientTarget ?? "");
+                }
+                catch (Exception ex)
+                {
+                    NotifyException($"发送失败: {ex.Message}", _clientTarget ?? "");
+                }
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(target))
+                {
+                    NotifyMessageSendError("WebSocket 服务器模式需要指定客户端标识");
+                    return;
+                }
+                if (_serverClients.TryGet(target, out WebSocket socket))
+                {
+                    try
+                    {
+                        socket.SendAsync(new ArraySegment<byte>(data), WebSocketMessageType.Binary, true, _cts.Token).Wait();
+                        NotifyMessageSent(Utils.BytesToHexString(data), data.Length, target);
                     }
                     catch (Exception ex)
                     {

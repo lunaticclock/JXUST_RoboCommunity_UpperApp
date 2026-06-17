@@ -114,6 +114,24 @@ namespace UpperApp.Services
             return true;
         }
 
+        /// <summary>
+        /// 直接发送原始字节（用于 Hex 模式，绕过字符编码）。
+        /// </summary>
+        public bool TrySendBytes(byte[] data, ChannelType? channelOverride = null)
+        {
+            var channel = channelOverride ?? _activeChannel;
+            ICommunicator comm;
+            lock (_cacheLock)
+            {
+                if (!_cache.TryGetValue(channel, out comm)) return false;
+            }
+            if (comm.State != DeviceState.Connected) return false;
+
+            string target = ResolveTarget(channel);
+            comm.Send(data, target);
+            return true;
+        }
+
         private string ResolveTarget(ChannelType channel)
         {
             return channel switch

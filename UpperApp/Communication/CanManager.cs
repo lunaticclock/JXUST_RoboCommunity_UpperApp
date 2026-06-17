@@ -2,7 +2,6 @@ using Peak.Can.Basic;
 using System;
 using System.Collections.Generic;
 using System.Runtime.Versioning;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using UpperApp.Core;
@@ -17,14 +16,8 @@ namespace UpperApp.Communication
         private readonly BindingDic<string> _canDevices = new();
         private CancellationTokenSource _cts;
         private bool _isMonitoring;
-        private readonly Encoding _encoding = Encoding.GetEncoding("GB2312");
 
         public override ChannelType Channel => ChannelType.CAN;
-
-        static CANManager()
-        {
-            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        }
 
         public override void Start(CommunicationParams parameters)
         {
@@ -158,6 +151,14 @@ namespace UpperApp.Communication
             {
                 NotifyException($"CAN 发送失败: {GetErrorMessage(status)}", id.ToString());
             }
+        }
+
+        /// <summary>
+        /// CAN 通道不支持原始字节直发（需 ID:数据 格式），Hex 模式不适用于 CAN。
+        /// </summary>
+        public override void Send(byte[] data, string target = null)
+        {
+            NotifyMessageSendError("CAN 通道不支持原始字节发送，请使用 ID:hex数据 格式");
         }
 
         private static string GetErrorMessage(PcanStatus status)

@@ -39,6 +39,32 @@ namespace UpperApp.Core
 
         public static string HexStringToString(string hexString)
         {
+            byte[] bytes = ParseHexString(hexString);
+            return bytes == null ? null : TextEncoding.GetString(bytes);
+        }
+
+        /// <summary>
+        /// 将字节序列格式化为空格分隔的十六进制字符串（如 "41 42 43"）。
+        /// 不经过任何字符编码，直接逐字节转换，用于 Hex 模式显示。
+        /// </summary>
+        public static string BytesToHexString(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0) return string.Empty;
+            var sb = new StringBuilder(bytes.Length * 3);
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                if (i > 0) sb.Append(' ');
+                sb.Append(bytes[i].ToString("X2"));
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// 将十六进制字符串解析为原始字节数组。支持空格/无分隔符，解析失败返回 null。
+        /// 不经过任何字符编码，直接逐字节解析，用于 Hex 模式发送。
+        /// </summary>
+        public static byte[] ParseHexString(string hexString)
+        {
             if (string.IsNullOrWhiteSpace(hexString)) return null;
             string[] parts = hexString.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
             byte[] bytes = new byte[parts.Length];
@@ -48,7 +74,7 @@ namespace UpperApp.Core
                 {
                     bytes[i] = Convert.ToByte(parts[i], 16);
                 }
-                return TextEncoding.GetString(bytes);
+                return bytes;
             }
             catch
             {

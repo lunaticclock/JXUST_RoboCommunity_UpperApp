@@ -153,6 +153,52 @@ namespace UpperApp.Communication
             }
         }
 
+        public override void Send(byte[] data, string target = null)
+        {
+            if (_udpSession == null)
+            {
+                NotifyMessageSendError("UDP未启动");
+                return;
+            }
+            if (data == null || data.Length == 0)
+            {
+                NotifyMessageSendAlert("未发出信息!");
+                return;
+            }
+            if (string.IsNullOrEmpty(target))
+            {
+                NotifyMessageSendError("UDP 发送需要指定目标 IP:Port");
+                return;
+            }
+
+            int colonIndex = target.LastIndexOf(':');
+            if (colonIndex <= 0 || !IPAddress.TryParse(target.AsSpan(0, colonIndex), out IPAddress remoteIP))
+            {
+                NotifyMessageSendError("远端IP错误!");
+                return;
+            }
+            if (!int.TryParse(target.AsSpan(colonIndex + 1), out int remotePort))
+            {
+                NotifyMessageSendError("远端端口错误!");
+                return;
+            }
+
+            try
+            {
+                var endPoint = new IPEndPoint(remoteIP, remotePort);
+                _udpSession.SendAsync(endPoint, data.AsMemory()).GetAwaiter().GetResult();
+                NotifyMessageSent(Utils.BytesToHexString(data), data.Length, target);
+            }
+            catch (Exception)
+            {
+                lock (_lock)
+                {
+                    _peerList.Remove(target);
+                }
+                NotifyPeerDisconnected("远端关闭", target);
+            }
+        }
+
         public override IReadOnlyList<string> GetPeerList()
         {
             lock (_lock)

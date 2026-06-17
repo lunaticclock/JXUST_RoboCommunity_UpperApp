@@ -105,6 +105,29 @@ namespace UpperApp.Communication
             }
         }
 
+        public override void Send(byte[] data, string target = null)
+        {
+            if (_serialClient == null || !_serialClient.Online)
+            {
+                NotifyMessageSendError("串口未打开");
+                return;
+            }
+            if (data == null || data.Length == 0)
+            {
+                NotifyMessageSendAlert("未发出信息!");
+                return;
+            }
+            try
+            {
+                _serialClient.SendAsync(data.AsMemory()).GetAwaiter().GetResult();
+                NotifyMessageSent(Utils.BytesToHexString(data), data.Length, "COM");
+            }
+            catch (Exception ex)
+            {
+                NotifyException($"串口写入失败: {ex.Message}");
+            }
+        }
+
         public override IReadOnlyList<string> GetPeerList() => [];
     }
 }

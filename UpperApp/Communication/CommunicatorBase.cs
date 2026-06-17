@@ -36,6 +36,7 @@ namespace UpperApp.Communication
         public abstract void Start(CommunicationParams parameters);
         public abstract void Stop();
         public abstract void Send(string data, string target = null);
+        public abstract void Send(byte[] data, string target = null);
         public abstract IReadOnlyList<string> GetPeerList();
 
         // ===== 状态上报工厂方法 =====

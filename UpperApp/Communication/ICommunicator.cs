@@ -41,6 +41,13 @@ namespace UpperApp.Communication
         void Send(string data, string target = null);
 
         /// <summary>
+        /// 发送原始字节（用于 Hex 模式，绕过字符编码，直接发送用户指定的字节序列）
+        /// </summary>
+        /// <param name="data">原始字节</param>
+        /// <param name="target">目标标识</param>
+        void Send(byte[] data, string target = null);
+
+        /// <summary>
         /// 获取当前连接的对端列表（用于 UI 绑定）
         /// </summary>
         IReadOnlyList<string> GetPeerList();

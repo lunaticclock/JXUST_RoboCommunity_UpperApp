@@ -366,7 +366,7 @@ namespace UpperApp.ViewModels
 
             for (int i = 0; i < 8; i++)
             {
-                PresetMessages.Add(new PresetMessageViewModel(str => StrSend(str)));
+                PresetMessages.Add(new PresetMessageViewModel((str, isHex) => StrSend(str, isHex)));
             }
 
             RefreshSerialPorts();
@@ -598,17 +598,36 @@ namespace UpperApp.ViewModels
             }
         }
 
-        private void StrSend(string buf)
+        /// <param name="hexOverride">是否强制 hex 模式（批量字串独立开关）；null 表示用主页面 IsHexMode</param>
+        private void StrSend(string buf, bool? hexOverride = null)
         {
             _deviceService.SetTarget(SelectedPeer);
             _deviceService.SetBluetoothTarget(SelectedBthSlave);
+
+            bool useHex = hexOverride ?? IsHexMode;
+
+            // Hex 模式：把用户输入的 hex 串解析为原始字节直接发送，绕过字符编码
+            if (useHex)
+            {
+                byte[] bytes = Utils.ParseHexString(buf);
+                if (bytes == null)
+                {
+                    StatusText = "Hex 格式错误，无法解析";
+                    AppendRecvText("[ERROR] Hex 格式错误，无法解析\r\n");
+                    return;
+                }
+                SendBytesAndEcho(bytes, buf);
+                return;
+            }
+
+            // 字符模式：走原命令链路
             var command = new RawSendCommand(buf, _deviceService.ActiveChannel);
             SendAndEcho(command, buf);
         }
 
         /// <summary>
-        /// 统一发送入口：执行命令发送，成功后直接在 VM 内回显 + 计数，
-        /// 不再依赖 SendMessage 事件回流（避免事件链冗余）。
+        /// 字符模式发送+回显：执行命令发送，成功后直接在 VM 内回显 + 计数。
+        /// 回显内容就是用户输入的字符串（不再二次转 hex）。
         /// </summary>
         private void SendAndEcho(IDeviceCommand command, string displayContent)
         {
@@ -618,22 +637,46 @@ namespace UpperApp.ViewModels
                 return;
             }
 
-            // 发送字节计数
+            // 发送字节计数（按 UTF-8 估算，与 Adapter 内部编码可能不同，仅作统计参考）
             int byteCount = Encoding.UTF8.GetByteCount(displayContent);
             _txCount += byteCount;
             TxCount = _txCount.ToString();
 
-            // 本地回显：直接在 UI 线程追加（调用方已在 UI 线程）
+            // 本地回显：字符模式下直接显示用户输入的字符串
             if (LocalEcho)
             {
-                string display = IsHexMode
-                    ? Utils.StringToHexString(displayContent)
-                    : EnsureLineEnding(displayContent);
-                AppendRecvText(display);
+                AppendRecvText(EnsureLineEnding(displayContent));
             }
 
             // 文件日志
             _logger.WriteLine($"[{Utils.GetTime()}] SEND [{_deviceService.ActiveChannel}]: {displayContent.TrimEnd()}");
+        }
+
+        /// <summary>
+        /// Hex 模式发送+回显：直接发送原始字节，回显用户输入的 hex 串。
+        /// </summary>
+        /// <param name="bytes">从 hex 串解析出的原始字节</param>
+        /// <param name="hexInput">用户输入的原始 hex 字符串（用于回显）</param>
+        private void SendBytesAndEcho(byte[] bytes, string hexInput)
+        {
+            if (!_deviceService.TrySendBytes(bytes))
+            {
+                StatusText = "发送失败：通道未连接或未找到";
+                return;
+            }
+
+            // 发送字节计数：实际发送的字节数
+            _txCount += bytes.Length;
+            TxCount = _txCount.ToString();
+
+            // 本地回显：hex 模式下直接显示用户输入的 hex 串
+            if (LocalEcho)
+            {
+                AppendRecvText(EnsureLineEnding(hexInput));
+            }
+
+            // 文件日志
+            _logger.WriteLine($"[{Utils.GetTime()}] SEND [{_deviceService.ActiveChannel}]: {hexInput.TrimEnd()}");
         }
 
         private static string EnsureLineEnding(string content)
@@ -1023,18 +1066,17 @@ namespace UpperApp.ViewModels
         private bool _isHex;
         public bool IsHex { get => _isHex; set => SetField(ref _isHex, value); }
 
-        private readonly Action<string> _sendAction;
+        private readonly Action<string, bool> _sendAction;
 
         public ICommand SendCommand { get; }
 
-        public PresetMessageViewModel(Action<string> sendAction)
+        public PresetMessageViewModel(Action<string, bool> sendAction)
         {
             _sendAction = sendAction;
             SendCommand = new RelayCommand(_ =>
             {
                 if (string.IsNullOrWhiteSpace(Message)) return;
-                string sendStr = IsHex ? Utils.HexStringToString(Message) : Message;
-                if (sendStr != null) _sendAction(sendStr);
+                _sendAction(Message, IsHex);
             });
         }
     }

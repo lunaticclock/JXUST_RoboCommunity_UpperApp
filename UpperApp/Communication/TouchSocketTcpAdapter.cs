@@ -148,6 +148,48 @@ namespace UpperApp.Communication
             }
         }
 
+        public override void Send(byte[] data, string target = null)
+        {
+            if (string.IsNullOrEmpty(target))
+            {
+                NotifyMessageSendError("TCP 发送需要指定目标");
+                return;
+            }
+            if (data == null || data.Length == 0)
+            {
+                NotifyMessageSendAlert("未发出信息!");
+                return;
+            }
+
+            ITcpSessionClient client = null;
+            bool found;
+            lock (_lock)
+            {
+                found = _clients.TryGetValue(target, out client);
+            }
+
+            if (!found || client == null || !client.Online)
+            {
+                NotifyMessageSendError($"目标 {target} 不在线");
+                return;
+            }
+
+            try
+            {
+                client.SendAsync(data.AsMemory()).GetAwaiter().GetResult();
+                NotifyMessageSent(Utils.BytesToHexString(data), data.Length, target);
+            }
+            catch (Exception ex)
+            {
+                lock (_lock)
+                {
+                    _clients.Remove(target);
+                }
+                NotifyException($"[TCP] 发送到 {target} 失败: {ex.Message}", target);
+                NotifyPeerDisconnected("发送失败导致断开", target);
+            }
+        }
+
         public override IReadOnlyList<string> GetPeerList()
         {
             lock (_lock)

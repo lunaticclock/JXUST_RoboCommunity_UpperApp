@@ -19,7 +19,6 @@ namespace UpperApp.Communication
     {
         private CancellationTokenSource _cts;
         private bool _isMonitoring;
-        private readonly Encoding _encoding = Encoding.GetEncoding("GB2312");
 
         public BluetoothRadio Br { get; private set; }
         private BluetoothListener _listener;
@@ -33,11 +32,6 @@ namespace UpperApp.Communication
         public string RadioMode => Br?.Mode.ToString() ?? "";
 
         public override ChannelType Channel => ChannelType.Bluetooth;
-
-        static BthManager()
-        {
-            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        }
 
         public BthManager()
         {
@@ -179,6 +173,32 @@ namespace UpperApp.Communication
                 client.GetStream().Write(buffer, 0, buffer.Length);
                 client.GetStream().Flush();
                 NotifyMessageSent(data, buffer.Length, target ?? "");
+            }
+            catch (Exception ex)
+            {
+                NotifyException(ex.Message);
+            }
+        }
+
+        public override void Send(byte[] data, string target = null)
+        {
+            BluetoothClient client = target == null ? _manualClient : GetSlaveClient(target);
+            if (client == null || !client.Connected)
+            {
+                NotifyPeerDisconnected("连接断开");
+                return;
+            }
+            if (data == null || data.Length == 0)
+            {
+                NotifyMessageSendAlert("未发出信息!");
+                return;
+            }
+
+            try
+            {
+                client.GetStream().Write(data, 0, data.Length);
+                client.GetStream().Flush();
+                NotifyMessageSent(Utils.BytesToHexString(data), data.Length, target ?? "");
             }
             catch (Exception ex)
             {

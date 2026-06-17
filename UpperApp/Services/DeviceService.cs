@@ -78,6 +78,19 @@ namespace UpperApp.Services
         }
 
         /// <summary>
+        /// 获取通道当前状态（未创建时返回 Disconnected）。
+        /// 用于通道状态指示灯条轮询。
+        /// </summary>
+        public DeviceState GetChannelState(ChannelType channel)
+        {
+            lock (_cacheLock)
+            {
+                if (!_cache.TryGetValue(channel, out var comm)) return DeviceState.Disconnected;
+                return comm.State;
+            }
+        }
+
+        /// <summary>
         /// 懒加载蓝牙通信器：首次访问时通过工厂创建并缓存，避免启动时初始化蓝牙栈。
         /// </summary>
         private IBluetoothCommunicator GetOrCreateBluetooth()

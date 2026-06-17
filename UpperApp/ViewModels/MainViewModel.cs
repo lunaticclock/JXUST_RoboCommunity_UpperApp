@@ -26,12 +26,15 @@ namespace UpperApp.ViewModels
         private readonly DataPipeline _receivePipeline;
         private readonly IConfigStorage _configStorage;
         private MapTracker _mapTracker;
+        private TrafficChart _trafficChart;
         private readonly DispatcherTimer _sendTimer;
         private readonly DispatcherTimer _memTimer;
         private readonly DispatcherTimer _rockerSendTimer;
+        private readonly DispatcherTimer _monitorTimer;
         private volatile bool _rockerDirty;
         private int _cnt, _counter;
         private int _rxCount, _txCount;
+        private int _lastRxCount, _lastTxCount;
 
         #region Bindable Properties
 
@@ -266,6 +269,10 @@ namespace UpperApp.ViewModels
         private bool _angleDisplayEnabled = true;
         public bool AngleDisplayEnabled { get => _angleDisplayEnabled; set => SetField(ref _angleDisplayEnabled, value); }
 
+        // 通道状态码字符串（分号分隔，顺序 Serial/TCP/UDP/BT/WS/CAN；0=断开 1=连接中 2=已连接 3=异常）
+        private string _channelStates = "0;0;0;0;0;0";
+        public string ChannelStates { get => _channelStates; set => SetField(ref _channelStates, value); }
+
         // Batch messages
         public ObservableCollection<PresetMessageViewModel> PresetMessages { get; } = [];
 
@@ -328,6 +335,11 @@ namespace UpperApp.ViewModels
             _rockerSendTimer.Tick += RockerSendTimer_Tick;
             _rockerSendTimer.Start();
 
+            // 通信监控定时器：每秒采样 Rx/Tx 增量推入流量曲线 + 轮询通道状态
+            _monitorTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _monitorTimer.Tick += MonitorTimer_Tick;
+            _monitorTimer.Start();
+
             ToggleSerialCommand = new RelayCommand(ToggleSerial);
             ToggleListenCommand = new RelayCommand(ToggleListen);
             ToggleBluetoothCommand = new RelayCommand(ToggleBluetooth);
@@ -378,6 +390,15 @@ namespace UpperApp.ViewModels
         public void SetMapTracker(MapTracker tracker)
         {
             _mapTracker = tracker;
+        }
+
+        /// <summary>
+        /// 注入流量曲线控件。View 在 Loaded 时调用。
+        /// 注入后监控定时器每秒调用 PushSample 推入 Rx/Tx 增量。
+        /// </summary>
+        public void SetTrafficChart(TrafficChart chart)
+        {
+            _trafficChart = chart;
         }
 
         private ILogSink _logSink;
@@ -896,6 +917,41 @@ namespace UpperApp.ViewModels
             MemUsage = $"{usemem:F1}M";
         }
 
+        private void MonitorTimer_Tick(object sender, EventArgs e)
+        {
+            // 流量采样：计算与上一秒的 Rx/Tx 字节增量
+            int rxDelta = _rxCount - _lastRxCount;
+            int txDelta = _txCount - _lastTxCount;
+            if (rxDelta < 0) rxDelta = 0;
+            if (txDelta < 0) txDelta = 0;
+            _lastRxCount = _rxCount;
+            _lastTxCount = _txCount;
+            _trafficChart?.PushSample(rxDelta, txDelta);
+
+            // 通道状态轮询：Serial/TCP/UDP/BT/WS/CAN
+            var channels = new ChannelType[]
+            {
+                ChannelType.Serial,
+                ChannelType.TCP,
+                ChannelType.UDP,
+                ChannelType.Bluetooth,
+                ChannelType.WebSocket,
+                ChannelType.CAN
+            };
+            var codes = new int[channels.Length];
+            for (int i = 0; i < channels.Length; i++)
+            {
+                codes[i] = _deviceService.GetChannelState(channels[i]) switch
+                {
+                    DeviceState.Connected => 2,
+                    DeviceState.Connecting => 1,
+                    DeviceState.Error => 3,
+                    _ => 0
+                };
+            }
+            ChannelStates = string.Join(';', codes);
+        }
+
         private void OnSliderChanged()
         {
             // 节流：只标记需要发送，由 _rockerSendTimer 定时批量发送最新值
@@ -1047,6 +1103,8 @@ namespace UpperApp.ViewModels
             _memTimer.Tick -= MemTimer_Tick;
             _rockerSendTimer?.Stop();
             _rockerSendTimer.Tick -= RockerSendTimer_Tick;
+            _monitorTimer?.Stop();
+            _monitorTimer.Tick -= MonitorTimer_Tick;
 
             _deviceService.StatusChanged -= UnifiedStatusChanged;
 

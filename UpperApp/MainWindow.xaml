@@ -28,11 +28,11 @@
             <ui:PanelHeader Grid.Row="0" Title="连接配置" DotColor="{StaticResource AccentBlueBrush}"/>
 
             <!-- 连接卡片 -->
-            <Border Grid.Row="1" Style="{StaticResource CardStyle}">
+            <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="0">
                 <TabControl>
                     <!-- 串口 Tab -->
                     <TabItem Header="串口">
-                        <StackPanel Margin="0,8,0,0">
+                        <StackPanel Margin="16,8,16,16">
                             <TextBlock Text="端口" Style="{StaticResource DataLabel}"/>
                             <ComboBox ItemsSource="{Binding SerialPorts}" SelectedItem="{Binding SelectedSerialPort, Mode=TwoWay}" IsEnabled="{Binding IsSerialConfigEnabled}" Margin="0,0,0,16"/>
 
@@ -45,7 +45,7 @@
 
                     <!-- 网络 Tab -->
                     <TabItem Header="网络">
-                        <StackPanel Margin="0,8,0,0">
+                        <StackPanel Margin="16,8,16,16">
                             <TextBlock Text="本机IP" Style="{StaticResource DataLabel}"/>
                             <ComboBox ItemsSource="{Binding LocalIPs}" SelectedItem="{Binding SelectedHostIP, Mode=TwoWay}" IsEnabled="{Binding IsNetConfigEnabled}" Margin="0,0,0,16"/>
 
@@ -73,7 +73,7 @@
 
                     <!-- 蓝牙 Tab -->
                     <TabItem Header="蓝牙">
-                        <Grid Margin="0,8,0,0">
+                        <Grid Margin="16,8,16,16">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
@@ -91,7 +91,7 @@
                             <TabControl Grid.Row="1">
                                 <!-- 服务端 Tab -->
                                 <TabItem Header="服务端">
-                                    <StackPanel Margin="8,12,8,8">
+                                    <StackPanel Margin="0,12,0,0">
                                         <Button Style="{StaticResource PrimaryButton}" Content="{Binding BthListenButtonText}" Command="{Binding ToggleBluetoothCommand}" Height="35" Margin="0,0,0,16"/>
 
                                         <TextBlock Text="已连接设备" Style="{StaticResource DataLabel}"/>
@@ -103,7 +103,7 @@
 
                                 <!-- 客户端 Tab -->
                                 <TabItem Header="客户端">
-                                    <StackPanel Margin="8,12,8,8">
+                                    <StackPanel Margin="0,12,0,0">
                                         <Button Content="{Binding BthScanButtonText}" Command="{Binding BthScanCommand}" Height="35" Margin="0,0,0,16"/>
 
                                         <TextBlock Text="发现的设备" Style="{StaticResource DataLabel}"/>
@@ -162,6 +162,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
@@ -228,6 +229,23 @@
                         <Button Content="{Binding AutoSendButtonText}" Command="{Binding ToggleAutoSendCommand}" Height="32" Margin="0,0,0,8" Padding="8,2"/>
                         <Button Content="清空" Command="{Binding ClearSendCommand}" Height="32" Padding="8,2"/>
                     </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- 通信监控卡片：流量曲线 + 通道状态 -->
+            <Border Grid.Row="3" Style="{StaticResource CardStyle}" Margin="0,12,0,0" Padding="12,10">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="通信监控" Style="{StaticResource SectionHeader}" Margin="0,0,0,6"/>
+
+                    <ui:TrafficChart x:Name="TrafficChartControl" Grid.Row="1" Margin="0,0,0,6"/>
+
+                    <ui:ChannelStatusIndicator x:Name="ChannelStatusControl" Grid.Row="2" States="{Binding ChannelStates}"/>
                 </Grid>
             </Border>
         </Grid>
@@ -370,10 +388,22 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <ui:MetricItem Grid.Column="0" Label="偏航" Value="{Binding Yaw}"/>
-                        <ui:MetricItem Grid.Column="1" Label="横滚" Value="{Binding Roll}"/>
-                        <ui:MetricItem Grid.Column="2" Label="俯仰" Value="{Binding Pitch}"/>
-                        <ui:MetricItem Grid.Column="3" Label="航程" Value="{Binding Distance}"/>
+                        <StackPanel Grid.Column="0">
+                            <ui:CompassGauge Angle="{Binding Yaw}"/>
+                            <TextBlock Text="偏航" Style="{StaticResource DataLabel}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <ui:RollGauge Angle="{Binding Roll}"/>
+                            <TextBlock Text="横滚" Style="{StaticResource DataLabel}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <ui:PitchGauge Angle="{Binding Pitch}"/>
+                            <TextBlock Text="俯仰" Style="{StaticResource DataLabel}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="3">
+                            <ui:DistanceGauge Distance="{Binding Distance}"/>
+                            <TextBlock Text="航程" Style="{StaticResource DataLabel}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                        </StackPanel>
                     </Grid>
 
                     <Grid Grid.Row="2">

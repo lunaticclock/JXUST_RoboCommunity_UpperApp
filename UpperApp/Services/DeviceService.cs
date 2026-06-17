@@ -11,22 +11,17 @@ namespace UpperApp.Services
     internal class DeviceService : IDisposable
     {
         private readonly ICommunicatorFactory _factory;
-        private readonly IBluetoothCommunicator _bluetoothComm;
         private readonly Dictionary<ChannelType, ICommunicator> _cache = [];
         private readonly Lock _cacheLock = new();
         private ChannelType _activeChannel = ChannelType.Serial;
         private string _pendingTarget;
         private string _pendingBthTarget;
 
-        public event Action<Result> StatusChanged;
+        public event Action<StatusEvent> StatusChanged;
 
-        public DeviceService(ICommunicatorFactory factory, IBluetoothCommunicator bluetoothComm)
+        public DeviceService(ICommunicatorFactory factory)
         {
             _factory = factory;
-            _bluetoothComm = bluetoothComm;
-
-            _cache[ChannelType.Bluetooth] = _bluetoothComm;
-            _bluetoothComm.StatusChanged += OnCommunicatorStatusChanged;
         }
 
         public ChannelType ActiveChannel
@@ -82,6 +77,14 @@ namespace UpperApp.Services
             }
         }
 
+        /// <summary>
+        /// 懒加载蓝牙通信器：首次访问时通过工厂创建并缓存，避免启动时初始化蓝牙栈。
+        /// </summary>
+        private IBluetoothCommunicator GetOrCreateBluetooth()
+        {
+            return (IBluetoothCommunicator)GetOrCreate(ChannelType.Bluetooth);
+        }
+
         public bool IsAnyChannelReady()
         {
             lock (_cacheLock)
@@ -130,23 +133,19 @@ namespace UpperApp.Services
             }
         }
 
-        public bool IsBluetoothReady => _bluetoothComm.State == DeviceState.Connected;
-        public bool IsBluetoothRadioAvailable => _bluetoothComm.IsRadioAvailable;
-        public bool IsBluetoothRadioPoweredOn => _bluetoothComm.IsRadioPoweredOn;
-        public string BluetoothRadioAddress => _bluetoothComm.RadioAddress;
-        public string BluetoothRadioMode => _bluetoothComm.RadioMode;
+        public bool IsBluetoothRadioAvailable => GetOrCreateBluetooth().IsRadioAvailable;
+        public bool IsBluetoothRadioPoweredOn => GetOrCreateBluetooth().IsRadioPoweredOn;
+        public string BluetoothRadioAddress => GetOrCreateBluetooth().RadioAddress;
+        public string BluetoothRadioMode => GetOrCreateBluetooth().RadioMode;
 
-        public void StartBluetooth(BluetoothParams param) => _bluetoothComm.Start(param);
-        public void StopBluetooth() => _bluetoothComm.Stop();
-        public void SendBluetooth(string data, string target = null) => _bluetoothComm.Send(data, target);
-        public void ConnectBluetoothDevice(string name) => _bluetoothComm.ConnectToDevice(name);
-        public void DisconnectBluetoothClient() => _bluetoothComm.DisconnectClient();
+        public void ConnectBluetoothDevice(string name) => GetOrCreateBluetooth().ConnectToDevice(name);
+        public void DisconnectBluetoothClient() => GetOrCreateBluetooth().DisconnectClient();
         public async System.Threading.Tasks.Task<List<InTheHand.Net.Sockets.BluetoothDeviceInfo>> DiscoverBluetoothDevicesAsync()
-            => await _bluetoothComm.DiscoverDevicesAsync();
+            => await GetOrCreateBluetooth().DiscoverDevicesAsync();
 
-        private void OnCommunicatorStatusChanged(Result result)
+        private void OnCommunicatorStatusChanged(StatusEvent evt)
         {
-            StatusChanged?.Invoke(result);
+            StatusChanged?.Invoke(evt);
         }
 
         public void DisposeAll()

@@ -54,8 +54,8 @@ namespace UpperApp.Services
             RegisterSingleton<ICommunicatorFactory>(factory);
             RegisterSingleton<IConfigStorage>(new JsonFileConfigStorage());
 
-            var bluetoothComm = (IBluetoothCommunicator)factory.Create(ChannelType.Bluetooth);
-            var deviceService = new DeviceService(factory, bluetoothComm);
+            // 蓝牙通信器懒加载：不在启动时创建，首次访问蓝牙时由 DeviceService 按需创建
+            var deviceService = new DeviceService(factory);
             RegisterSingleton(deviceService);
         }
     }

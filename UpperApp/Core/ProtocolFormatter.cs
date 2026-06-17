@@ -1,4 +1,4 @@
-namespace UpperApp.UI
+namespace UpperApp.Core
 {
     internal static class ProtocolFormatter
     {

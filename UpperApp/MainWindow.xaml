@@ -1,7 +1,8 @@
 <Window x:Class="UpperApp.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="小车上位机 V7.0" Height="868" Width="1500"
+        xmlns:ui="clr-namespace:UpperApp.UI"
+        Title="小车上位机 V7.0" Height="750" Width="1500"
         MinWidth="1200" MinHeight="700"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BgDeepBrush}">
@@ -24,17 +25,10 @@
             </Grid.RowDefinitions>
 
             <!-- 标题栏 -->
-            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,16">
-                <Ellipse Width="10" Height="10" Fill="{StaticResource AccentBlueBrush}" Margin="0,0,10,0" VerticalAlignment="Center">
-                    <Ellipse.Effect>
-                        <DropShadowEffect Color="{StaticResource AccentBlueGlow}" ShadowDepth="0" BlurRadius="8" Opacity="0.6"/>
-                    </Ellipse.Effect>
-                </Ellipse>
-                <TextBlock Text="连接配置" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
-            </StackPanel>
+            <ui:PanelHeader Grid.Row="0" Title="连接配置" DotColor="{StaticResource AccentBlueBrush}"/>
 
             <!-- 连接卡片 -->
-            <Border Style="{StaticResource CardStyle}" Margin="0,36,0,237" Grid.RowSpan="3">
+            <Border Grid.Row="1" Style="{StaticResource CardStyle}">
                 <TabControl>
                     <!-- 串口 Tab -->
                     <TabItem Header="串口">
@@ -79,34 +73,49 @@
 
                     <!-- 蓝牙 Tab -->
                     <TabItem Header="蓝牙">
-                        <StackPanel Margin="0,8,0,0">
-                            <Button Style="{StaticResource PrimaryButton}" Content="{Binding BthListenButtonText}" Command="{Binding ToggleBluetoothCommand}" Height="35" Margin="0,0,0,16"/>
+                        <Grid Margin="0,8,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
 
-                            <Border Background="{StaticResource BgPrimaryBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,16">
-                                <TextBox Style="{StaticResource MonoTextBox}" Text="{Binding BthRecvText}" IsReadOnly="True" Height="80" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Background="Transparent" BorderThickness="0" Padding="0"/>
+                            <!-- 蓝牙状态栏 -->
+                            <Border Grid.Row="0" Background="{StaticResource BgPrimaryBrush}" CornerRadius="6" Padding="12,8" Margin="0,0,0,12">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="8" Height="8" Fill="{Binding BthStatusColor}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBlock Text="{Binding BthRadioStatus}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" VerticalAlignment="Center"/>
+                                </StackPanel>
                             </Border>
 
-                            <Grid Margin="0,0,0,16" Height="35">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="157*"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="32*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBox Grid.Column="0" Text="{Binding BthSendText, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0" Grid.ColumnSpan="3"/>
-                                <Button Grid.Column="3" Content="发送" Command="{Binding BthSendCommand}" Width="60"/>
-                            </Grid>
+                            <!-- 服务端/客户端子 Tab -->
+                            <TabControl Grid.Row="1">
+                                <!-- 服务端 Tab -->
+                                <TabItem Header="服务端">
+                                    <StackPanel Margin="8,12,8,8">
+                                        <Button Style="{StaticResource PrimaryButton}" Content="{Binding BthListenButtonText}" Command="{Binding ToggleBluetoothCommand}" Height="35" Margin="0,0,0,16"/>
 
-                            <Button Content="{Binding BthScanButtonText}" Command="{Binding BthScanCommand}" Margin="0,0,0,16" Height="35"/>
+                                        <TextBlock Text="已连接设备" Style="{StaticResource DataLabel}"/>
+                                        <ComboBox ItemsSource="{Binding BthSlaveList}" SelectedItem="{Binding SelectedBthSlave, Mode=TwoWay}" Margin="0,0,0,16"/>
 
-                            <TextBlock Text="主设备" Style="{StaticResource DataLabel}"/>
-                            <ComboBox ItemsSource="{Binding BthDeviceList}" SelectedItem="{Binding SelectedBthDevice, Mode=TwoWay}" Margin="0,0,0,12"/>
+                                        <ui:SendRow Text="{Binding BthServerSendText, Mode=TwoWay}" SendCommand="{Binding BthServerSendCommand}"/>
+                                    </StackPanel>
+                                </TabItem>
 
-                            <TextBlock Text="从设备" Style="{StaticResource DataLabel}"/>
-                            <ComboBox ItemsSource="{Binding BthSlaveList}" SelectedItem="{Binding SelectedBthSlave, Mode=TwoWay}" Margin="0,0,0,12"/>
+                                <!-- 客户端 Tab -->
+                                <TabItem Header="客户端">
+                                    <StackPanel Margin="8,12,8,8">
+                                        <Button Content="{Binding BthScanButtonText}" Command="{Binding BthScanCommand}" Height="35" Margin="0,0,0,16"/>
 
-                            <Button Style="{StaticResource SuccessButton}" Content="{Binding BthConnectButtonText}" Command="{Binding BthConnectCommand}" Height="36"/>
-                        </StackPanel>
+                                        <TextBlock Text="发现的设备" Style="{StaticResource DataLabel}"/>
+                                        <ComboBox ItemsSource="{Binding BthDeviceList}" SelectedItem="{Binding SelectedBthDevice, Mode=TwoWay}" Margin="0,0,0,12"/>
+
+                                        <Button Style="{StaticResource SuccessButton}" Content="{Binding BthConnectButtonText}" Command="{Binding BthConnectCommand}" Height="36" Margin="0,0,0,16"/>
+
+                                        <ui:SendRow Text="{Binding BthClientSendText, Mode=TwoWay}" SendCommand="{Binding BthClientSendCommand}"/>
+                                    </StackPanel>
+                                </TabItem>
+                            </TabControl>
+                        </Grid>
                     </TabItem>
                 </TabControl>
             </Border>
@@ -157,14 +166,7 @@
             </Grid.RowDefinitions>
 
             <!-- 标题栏 -->
-            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,16">
-                <Ellipse Width="10" Height="10" Fill="{StaticResource AccentCyanBrush}" Margin="0,0,10,0" VerticalAlignment="Center">
-                    <Ellipse.Effect>
-                        <DropShadowEffect Color="{StaticResource AccentCyan}" ShadowDepth="0" BlurRadius="8" Opacity="0.6"/>
-                    </Ellipse.Effect>
-                </Ellipse>
-                <TextBlock Text="数据收发" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
-            </StackPanel>
+            <ui:PanelHeader Grid.Row="0" Title="数据收发" DotColor="{StaticResource AccentCyanBrush}"/>
 
             <!-- 接收区卡片 -->
             <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="0">
@@ -191,14 +193,14 @@
 
                     <!-- 接收内容 -->
                     <Border Grid.Row="1" Background="{StaticResource BgDeepBrush}" Margin="1,0,1,0">
-                        <TextBox Style="{StaticResource MonoTextBox}" Text="{Binding RecvText}" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Background="Transparent" BorderThickness="0" Padding="16" FontSize="12"/>
+                        <TextBox x:Name="RecvTextBox" Style="{StaticResource MonoTextBox}" Text="{Binding RecvText}" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Background="Transparent" BorderThickness="0" Padding="16" FontSize="12"/>
                     </Border>
 
                     <!-- 状态栏 -->
                     <Border Grid.Row="2" Background="{StaticResource BgSecondaryBrush}" CornerRadius="0,0,8,8" Padding="16,8">
                         <DockPanel>
                             <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                                <Ellipse Width="8" Height="8" Fill="{StaticResource StatusOnlineBrush}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                <Ellipse Width="8" Height="8" Fill="{StaticResource AccentGreenBrush}" Margin="0,0,6,0" VerticalAlignment="Center"/>
                                 <TextBlock Text="{Binding MemUsage}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" FontFamily="{StaticResource FontMono}"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -241,14 +243,7 @@
             </Grid.RowDefinitions>
 
             <!-- 标题栏 -->
-            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,16">
-                <Ellipse Width="10" Height="10" Fill="{StaticResource AccentOrangeBrush}" Margin="0,0,10,0" VerticalAlignment="Center">
-                    <Ellipse.Effect>
-                        <DropShadowEffect Color="{StaticResource AccentOrange}" ShadowDepth="0" BlurRadius="8" Opacity="0.6"/>
-                    </Ellipse.Effect>
-                </Ellipse>
-                <TextBlock Text="运动控制" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
-            </StackPanel>
+            <ui:PanelHeader Grid.Row="0" Title="运动控制" DotColor="{StaticResource AccentOrangeBrush}"/>
 
             <!-- 控制卡片 -->
             <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="0">
@@ -258,64 +253,23 @@
                         <Grid Margin="16">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
 
-                            <!-- 速度控制 -->
-                            <Grid Grid.Row="0" Margin="0,0,0,20">
+                            <!-- 数值显示 -->
+                            <Grid Grid.Row="0" Margin="0,0,0,16">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="50"/>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="50"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="速度" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" FontSize="13"/>
-                                <Slider Grid.Column="1" Value="{Binding FbValue}" Minimum="0" Maximum="100" VerticalAlignment="Center" Margin="8,0"/>
-                                <TextBlock Grid.Column="2" Text="{Binding FbValue}" TextAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource AccentCyanBrush}" FontWeight="Bold" FontFamily="{StaticResource FontMono}" FontSize="16"/>
-                            </Grid>
-
-                            <!-- 方向控制 -->
-                            <Grid Grid.Row="1" Margin="0,0,0,20">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="50"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="50"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="方向" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" FontSize="13"/>
-                                <Slider Grid.Column="1" Value="{Binding RlValue}" Minimum="0" Maximum="100" VerticalAlignment="Center" Margin="8,0"/>
-                                <TextBlock Grid.Column="2" Text="{Binding RlValue}" TextAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource AccentCyanBrush}" FontWeight="Bold" FontFamily="{StaticResource FontMono}" FontSize="16"/>
-                            </Grid>
-
-                            <!-- 步进与控制 -->
-                            <Grid Grid.Row="2" Margin="0,0,0,20">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="60"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="步进" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,12,0"/>
-                                <TextBox Grid.Column="1" Text="{Binding StepSize, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" TextAlignment="Center" Height="31"/>
-                                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
-                                    <Button Style="{StaticResource DangerButton}" Content="停车" Command="{Binding StopCommand}" Width="70" Height="32" Margin="0,0,8,0"/>
-                                    <Button Content="回正" Command="{Binding ResetDirectionCommand}" Width="70" Height="32"/>
-                                </StackPanel>
+                                <ui:MetricItem Grid.Column="0" Label="速度" Value="{Binding FbValue}" ValueFontSize="24"/>
+                                <ui:MetricItem Grid.Column="1" Label="方向" Value="{Binding RlValue}" ValueFontSize="24"/>
                             </Grid>
 
-                            <Separator Grid.Row="3"/>
-
-                            <!-- 摇杆按钮 -->
-                            <Button Grid.Row="3" Content="{Binding RockerText}" Command="{Binding ToggleRockerCommand}"
-                                    FontSize="18" FontWeight="Bold"
-                                    Foreground="{StaticResource AccentCyanBrush}"
-                                    Background="{StaticResource BgPrimaryBrush}"
-                                    BorderBrush="{StaticResource AccentCyanBrush}"
-                                    BorderThickness="2" Grid.RowSpan="2">
-                                <Button.Effect>
-                                    <DropShadowEffect Color="{StaticResource AccentCyan}" ShadowDepth="0" BlurRadius="12" Opacity="0.3"/>
-                                </Button.Effect>
-                            </Button>
+                            <!-- 虚拟摇杆 -->
+                            <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <ui:JoystickControl Speed="{Binding FbValue, Mode=TwoWay}" Direction="{Binding RlValue, Mode=TwoWay}"/>
+                            </StackPanel>
                         </Grid>
                     </TabItem>
 
@@ -375,14 +329,8 @@
                                 </Grid.ColumnDefinitions>
                                 <Button Grid.Column="0" Content="打开" Command="{Binding OpenMapCommand}" Margin="0,0,8,0" Padding="12,4"/>
                                 <Button Grid.Column="1" Content="清除锚点" Command="{Binding ClearMapCommand}" Margin="0,0,16,0" Padding="12,4"/>
-                                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,12,0">
-                                    <TextBlock Text="起点" Foreground="{StaticResource TextMutedBrush}" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                    <TextBlock Text="{Binding MapStartPoint}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" FontFamily="{StaticResource FontMono}" VerticalAlignment="Center"/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="3" Orientation="Horizontal">
-                                    <TextBlock Text="终点" Foreground="{StaticResource TextMutedBrush}" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                    <TextBlock Text="{Binding MapEndPoint}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" FontFamily="{StaticResource FontMono}" VerticalAlignment="Center"/>
-                                </StackPanel>
+                                <ui:MetricLabel Grid.Column="2" Label="起点" Value="{Binding MapStartPoint}" Margin="0,0,12,0"/>
+                                <ui:MetricLabel Grid.Column="3" Label="终点" Value="{Binding MapEndPoint}"/>
                             </Grid>
 
                             <Grid Grid.Row="2">
@@ -392,10 +340,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,16,0">
-                                    <TextBlock Text="鼠标" Foreground="{StaticResource TextMutedBrush}" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                    <TextBlock Text="{Binding MousePosition}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" FontFamily="{StaticResource FontMono}" VerticalAlignment="Center"/>
-                                </StackPanel>
+                                <ui:MetricLabel Grid.Column="0" Label="鼠标" Value="{Binding MousePosition}" Margin="0,0,16,0"/>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                                     <TextBlock Text="距离(m)" Foreground="{StaticResource TextMutedBrush}" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"/>
                                     <TextBox Text="{Binding CalibratedDistance, UpdateSourceTrigger=PropertyChanged}" Width="80" FontSize="11" VerticalAlignment="Center" TextAlignment="Center" Height="35"/>
@@ -412,11 +357,12 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Text="姿态监控" Style="{StaticResource SectionHeader}" Margin="0,0,0,12"/>
 
-                    <Grid Grid.Row="1">
+                    <Grid Grid.Row="1" Margin="0,0,0,12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
@@ -424,32 +370,13 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- 偏航 -->
-                        <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                            <TextBlock Text="偏航" Style="{StaticResource DataLabel}" HorizontalAlignment="Center"/>
-                            <TextBlock Text="{Binding Yaw}" Style="{StaticResource DataValue}" FontSize="18"/>
-                        </StackPanel>
-
-                        <!-- 横滚 -->
-                        <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                            <TextBlock Text="横滚" Style="{StaticResource DataLabel}" HorizontalAlignment="Center"/>
-                            <TextBlock Text="{Binding Roll}" Style="{StaticResource DataValue}" FontSize="18"/>
-                        </StackPanel>
-
-                        <!-- 俯仰 -->
-                        <StackPanel Grid.Column="2" HorizontalAlignment="Center">
-                            <TextBlock Text="俯仰" Style="{StaticResource DataLabel}" HorizontalAlignment="Center"/>
-                            <TextBlock Text="{Binding Pitch}" Style="{StaticResource DataValue}" FontSize="18"/>
-                        </StackPanel>
-
-                        <!-- 航程 -->
-                        <StackPanel Grid.Column="3" HorizontalAlignment="Center">
-                            <TextBlock Text="航程" Style="{StaticResource DataLabel}" HorizontalAlignment="Center"/>
-                            <TextBlock Text="{Binding Distance}" Style="{StaticResource DataValue}" FontSize="18"/>
-                        </StackPanel>
+                        <ui:MetricItem Grid.Column="0" Label="偏航" Value="{Binding Yaw}"/>
+                        <ui:MetricItem Grid.Column="1" Label="横滚" Value="{Binding Roll}"/>
+                        <ui:MetricItem Grid.Column="2" Label="俯仰" Value="{Binding Pitch}"/>
+                        <ui:MetricItem Grid.Column="3" Label="航程" Value="{Binding Distance}"/>
                     </Grid>
 
-                    <Grid Grid.Row="1" Margin="0,60,0,0">
+                    <Grid Grid.Row="2">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>

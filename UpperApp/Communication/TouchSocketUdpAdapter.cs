@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Net;
 using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using TouchSocket.Core;
 using TouchSocket.Sockets;
 using UpperApp.Core;
@@ -11,45 +10,30 @@ using UpperApp.Services;
 
 namespace UpperApp.Communication
 {
-    internal class TouchSocketUdpAdapter : ICommunicator
+    internal class TouchSocketUdpAdapter : CommunicatorBase
     {
         private UdpSession _udpSession;
         private readonly HashSet<string> _peerList = [];
         private readonly Lock _lock = new();
         private string _lastRemoteEndPoint = "";
-        private DeviceState _state = DeviceState.Disconnected;
         private readonly Encoding _encoding = Encoding.GetEncoding("GB2312");
 
-        public event Action<UpperApp.Core.Result> StatusChanged;
-
-        public ChannelType Channel => ChannelType.UDP;
-
-        public DeviceState State
-        {
-            get => _state;
-            private set
-            {
-                if (_state != value)
-                {
-                    _state = value;
-                }
-            }
-        }
+        public override ChannelType Channel => ChannelType.UDP;
 
         static TouchSocketUdpAdapter()
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         }
 
-        public void Start(CommunicationParams parameters)
+        public override void Start(CommunicationParams parameters)
         {
             if (parameters is not UdpParams udpParams)
                 throw new ArgumentException("参数类型必须为 UdpParams");
 
-            if (!IPAddress.TryParse(udpParams.LocalIP, out var ip) ||
+            if (!IPAddress.TryParse(udpParams.LocalIP, out _) ||
                 udpParams.Port <= 0 || udpParams.Port > 65535)
             {
-                OnStatusChanged(new UpperApp.Core.Result(UpperApp.Core.Result.NETStatus.ExceptionStop, "IP 或端口无效"));
+                NotifyException("IP 或端口无效");
                 return;
             }
 
@@ -62,26 +46,23 @@ namespace UpperApp.Communication
             {
                 var remoteEndPoint = e.EndPoint.ToString();
                 var message = e.Memory.Span.ToString(_encoding) + "\r\n";
-                var result = new UpperApp.Core.Result(UpperApp.Core.Result.NETStatus.ReciveMessage, message, e.Memory.Length, remoteEndPoint)
-                {
-                    IPPort = remoteEndPoint
-                };
+                int byteCount = e.Memory.Length;
 
                 lock (_lock)
                 {
                     if (_peerList.Add(remoteEndPoint))
-                    {
-                        OnStatusChanged(new UpperApp.Core.Result(UpperApp.Core.Result.NETStatus.NewRemote, remoteEndPoint, 0, remoteEndPoint));
-                    }
+                        NotifyPeerConnected(remoteEndPoint);
                 }
 
+                // 切换到新对端时附加提示前缀
+                string peerHint = "";
                 if (!remoteEndPoint.Equals(_lastRemoteEndPoint))
                 {
-                    result = result with { NewPeer = $"\r\nfrom {remoteEndPoint}:\r\n" };
+                    peerHint = $"\r\nfrom {remoteEndPoint}:\r\n";
                     _lastRemoteEndPoint = remoteEndPoint;
                 }
 
-                OnStatusChanged(result);
+                NotifyMessageReceived(message, byteCount, remoteEndPoint, peerHint);
                 return EasyTask.CompletedTask;
             };
 
@@ -92,23 +73,22 @@ namespace UpperApp.Communication
             {
                 _udpSession.SetupAsync(config).GetAwaiter().GetResult();
                 _udpSession.StartAsync().GetAwaiter().GetResult();
-                State = DeviceState.Connected;
-                OnStatusChanged(new UpperApp.Core.Result(UpperApp.Core.Result.NETStatus.MonitorStart, "UDP 监听开始"));
+                NotifyMonitorStarted("UDP 监听开始");
             }
             catch (Exception ex)
             {
-                OnStatusChanged(new UpperApp.Core.Result(UpperApp.Core.Result.NETStatus.ExceptionStop, $"UDP 启动失败: {ex.Message}"));
+                NotifyException($"UDP 启动失败: {ex.Message}");
                 _udpSession?.SafeDispose();
                 _udpSession = null;
-                State = DeviceState.Error;
             }
         }
 
-        public void Stop()
+        public override void Stop()
         {
-            if (_udpSession == null && _state == DeviceState.Disconnected) return;
+            if (IsStopping) return;
+            if (_udpSession == null && State == DeviceState.Disconnected) return;
 
-            State = DeviceState.Disconnecting;
+            BeginStop();
 
             lock (_lock)
             {
@@ -120,40 +100,40 @@ namespace UpperApp.Communication
             _udpSession = null;
             _lastRemoteEndPoint = "";
 
-            OnStatusChanged(new UpperApp.Core.Result(UpperApp.Core.Result.NETStatus.MonitorStop, "UDP 已停止"));
-            State = DeviceState.Disconnected;
+            NotifyMonitorStopped("UDP 已停止");
+            EndStop();
         }
 
-        public void Send(string data, string target = null)
+        public override void Send(string data, string target = null)
         {
             if (_udpSession == null)
             {
-                OnStatusChanged(new UpperApp.Core.Result(UpperApp.Core.Result.NETStatus.SendMessage, "UDP未启动", 0, "") { Status = UpperApp.Core.Result.ResStatus.Error });
+                NotifyMessageSendError("UDP未启动");
                 return;
             }
 
             if (string.IsNullOrEmpty(target))
             {
-                OnStatusChanged(new UpperApp.Core.Result(UpperApp.Core.Result.NETStatus.SendMessage, "UDP 发送需要指定目标 IP:Port", 0, "") { Status = UpperApp.Core.Result.ResStatus.Error });
+                NotifyMessageSendError("UDP 发送需要指定目标 IP:Port");
                 return;
             }
 
             int colonIndex = target.LastIndexOf(':');
             if (colonIndex <= 0 || !IPAddress.TryParse(target.AsSpan(0, colonIndex), out IPAddress remoteIP))
             {
-                OnStatusChanged(new UpperApp.Core.Result(UpperApp.Core.Result.NETStatus.SendMessage, "远端IP错误!", 0, "") { Status = UpperApp.Core.Result.ResStatus.Error });
+                NotifyMessageSendError("远端IP错误!");
                 return;
             }
             if (!int.TryParse(target.AsSpan(colonIndex + 1), out int remotePort))
             {
-                OnStatusChanged(new UpperApp.Core.Result(UpperApp.Core.Result.NETStatus.SendMessage, "远端端口错误!", 0, "") { Status = UpperApp.Core.Result.ResStatus.Error });
+                NotifyMessageSendError("远端端口错误!");
                 return;
             }
 
             byte[] sendBytes = _encoding.GetBytes(data);
             if (sendBytes.Length == 0)
             {
-                OnStatusChanged(new UpperApp.Core.Result(UpperApp.Core.Result.NETStatus.SendMessage, "未发出信息!", 0, "") { Status = UpperApp.Core.Result.ResStatus.Alert });
+                NotifyMessageSendAlert("未发出信息!");
                 return;
             }
 
@@ -161,8 +141,7 @@ namespace UpperApp.Communication
             {
                 var endPoint = new IPEndPoint(remoteIP, remotePort);
                 _udpSession.SendAsync(endPoint, sendBytes.AsMemory()).GetAwaiter().GetResult();
-                var result = new UpperApp.Core.Result(UpperApp.Core.Result.NETStatus.SendMessage, data, sendBytes.Length, target) { Status = UpperApp.Core.Result.ResStatus.SetNum };
-                OnStatusChanged(result);
+                NotifyMessageSent(data, sendBytes.Length, target);
             }
             catch (Exception)
             {
@@ -170,32 +149,16 @@ namespace UpperApp.Communication
                 {
                     _peerList.Remove(target);
                 }
-                OnStatusChanged(new UpperApp.Core.Result(UpperApp.Core.Result.NETStatus.RemoteStop, "远端关闭", 0, target));
+                NotifyPeerDisconnected("远端关闭", target);
             }
         }
 
-        public IReadOnlyList<string> GetPeerList()
+        public override IReadOnlyList<string> GetPeerList()
         {
             lock (_lock)
             {
                 return [.. _peerList];
             }
-        }
-
-        public ValueTask DisposeAsync()
-        {
-            Stop();
-            GC.SuppressFinalize(this);
-            return ValueTask.CompletedTask;
-        }
-
-        private void OnStatusChanged(UpperApp.Core.Result result)
-        {
-            if (result.Channel == ChannelType.Unknown)
-                result = result with { Channel = ChannelType.UDP };
-            if (result.NetStatus == UpperApp.Core.Result.NETStatus.ExceptionStop)
-                State = DeviceState.Error;
-            StatusChanged?.Invoke(result);
         }
     }
 }

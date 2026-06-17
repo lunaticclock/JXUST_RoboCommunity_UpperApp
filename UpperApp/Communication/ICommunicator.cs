@@ -13,7 +13,7 @@ namespace UpperApp.Communication
         /// <summary>
         /// 状态变化事件（接收消息、发送消息、异常、连接变化等）
         /// </summary>
-        event Action<Result> StatusChanged;
+        event Action<StatusEvent> StatusChanged;
 
         /// <summary>
         /// 通信通道类型

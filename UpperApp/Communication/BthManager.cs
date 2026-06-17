@@ -15,12 +15,10 @@ using UpperApp.Services;
 namespace UpperApp.Communication
 {
     [SupportedOSPlatform("windows10.0.19041.0")]
-    internal class BthManager : ICommunicator, IBluetoothCommunicator
+    internal class BthManager : CommunicatorBase, IBluetoothCommunicator
     {
         private CancellationTokenSource _cts;
         private bool _isMonitoring;
-        private bool _isStopping;
-        private DeviceState _state = DeviceState.Disconnected;
         private readonly Encoding _encoding = Encoding.GetEncoding("GB2312");
 
         public BluetoothRadio Br { get; private set; }
@@ -34,18 +32,7 @@ namespace UpperApp.Communication
         public string RadioAddress => Br?.LocalAddress.ToString() ?? "";
         public string RadioMode => Br?.Mode.ToString() ?? "";
 
-        public event Action<Result> StatusChanged;
-        public ChannelType Channel => ChannelType.Bluetooth;
-
-        public DeviceState State
-        {
-            get => _state;
-            private set
-            {
-                if (_state != value)
-                    _state = value;
-            }
-        }
+        public override ChannelType Channel => ChannelType.Bluetooth;
 
         static BthManager()
         {
@@ -57,7 +44,7 @@ namespace UpperApp.Communication
             Br = BluetoothRadio.Default;
         }
 
-        public void Start(CommunicationParams parameters)
+        public override void Start(CommunicationParams parameters)
         {
             if (parameters is not BluetoothParams btParams)
                 throw new ArgumentException("参数类型必须为 BluetoothParams");
@@ -65,36 +52,36 @@ namespace UpperApp.Communication
             Stop();
             State = DeviceState.Connecting;
             _cts = new CancellationTokenSource();
-            _isStopping = false;
 
             if (btParams.IsServerMode)
             {
                 _listener = new BluetoothListener(BluetoothService.SerialPort);
                 _listener.Start();
                 _ = Task.Run(() => AcceptLoopAsync(_cts.Token));
+                NotifyMonitorStarted("蓝牙服务端监听已开始");
+                _isMonitoring = true;
             }
             else
             {
                 if (string.IsNullOrEmpty(btParams.TargetDeviceName))
                 {
-                    OnStatusChanged(new Result(Result.NETStatus.ExceptionStop, "未指定要连接的蓝牙设备名称"));
+                    NotifyException("未指定要连接的蓝牙设备名称");
                     Stop();
                     return;
                 }
-                SetMaster(btParams.TargetDeviceName);
+                // 客户端模式：异步连接，避免阻塞 UI 线程；连接结果由 SetMasterAsync 内部上报状态
+                var targetName = btParams.TargetDeviceName;
+                _ = Task.Run(() => SetMasterAsync(targetName, _cts.Token));
             }
-
-            State = DeviceState.Connected;
-            OnStatusChanged(new Result(Result.NETStatus.MonitorStart, "蓝牙监听开始"));
-            _isMonitoring = true;
         }
 
-        public void Stop()
+        public override void Stop()
         {
-            if (!_isMonitoring && _state == DeviceState.Disconnected) return;
+            // 防止重复调用：正在停止或已断开则直接返回
+            if (IsStopping) return;
+            if (!_isMonitoring && State == DeviceState.Disconnected) return;
 
-            _isStopping = true;
-            State = DeviceState.Disconnecting;
+            BeginStop();
             _isMonitoring = false;
             _cts?.Cancel();
             _cts?.Dispose();
@@ -109,9 +96,8 @@ namespace UpperApp.Communication
             try { _manualClient?.Dispose(); } catch { }
             _manualClient = null;
 
-            OnStatusChanged(new Result(Result.NETStatus.MonitorStop, "蓝牙已停止"));
-            State = DeviceState.Disconnected;
-            _isStopping = false;
+            NotifyMonitorStopped("蓝牙已停止");
+            EndStop();
         }
 
         private async Task AcceptLoopAsync(CancellationToken token)
@@ -123,7 +109,7 @@ namespace UpperApp.Communication
                     BluetoothClient client = await Task.Run(() => _listener!.AcceptBluetoothClient(), token);
                     string deviceName = client.RemoteMachineName ?? "unknown";
                     BthClients.Add(deviceName, client);
-                    OnStatusChanged(new Result(Result.NETStatus.NewRemote, "Got a request!\r\n"));
+                    NotifyPeerConnected(deviceName, "Got a request!\r\n");
 
                     try
                     {
@@ -139,7 +125,7 @@ namespace UpperApp.Communication
             catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                OnStatusChanged(new Result(Result.NETStatus.ExceptionStop, $"监听异常: {ex.Message}"));
+                NotifyException($"监听异常: {ex.Message}");
             }
             finally
             {
@@ -161,7 +147,7 @@ namespace UpperApp.Communication
                     if (bytesRead == 0) break;
 
                     string data = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                    OnStatusChanged(new Result(Result.NETStatus.ReciveMessage, data, bytesRead));
+                    NotifyMessageReceived(data, bytesRead, deviceName);
                 }
             }
             catch (OperationCanceledException) { }
@@ -173,17 +159,17 @@ namespace UpperApp.Communication
             {
                 BthClients.Remove(deviceName);
                 client.Close();
-                if (!_isStopping)
-                    OnStatusChanged(new Result(Result.NETStatus.RemoteStop, deviceName));
+                if (!IsStopping)
+                    NotifyPeerDisconnected("蓝牙从设备断开", deviceName);
             }
         }
 
-        public void Send(string data, string target = null)
+        public override void Send(string data, string target = null)
         {
             BluetoothClient client = target == null ? _manualClient : GetSlaveClient(target);
             if (client == null || !client.Connected)
             {
-                OnStatusChanged(new Result(Result.NETStatus.RemoteStop, "连接断开", 0));
+                NotifyPeerDisconnected("连接断开");
                 return;
             }
 
@@ -192,24 +178,63 @@ namespace UpperApp.Communication
                 byte[] buffer = Encoding.UTF8.GetBytes(data);
                 client.GetStream().Write(buffer, 0, buffer.Length);
                 client.GetStream().Flush();
-                OnStatusChanged(new Result(Result.NETStatus.SendMessage, data, buffer.Length));
+                NotifyMessageSent(data, buffer.Length, target ?? "");
             }
             catch (Exception ex)
             {
-                OnStatusChanged(new Result(Result.NETStatus.ExceptionStop, ex.Message));
+                NotifyException(ex.Message);
             }
         }
 
+        public async Task SetMasterAsync(string bluetoothDeviceName, CancellationToken token)
+        {
+            _manualClient?.Close();
+            _manualClient = new BluetoothClient();
+            if (!BthDevices.TryGetValue(bluetoothDeviceName, out var device))
+            {
+                NotifyException($"未找到蓝牙设备: {bluetoothDeviceName}");
+                Stop();
+                return;
+            }
+
+            try
+            {
+                // BluetoothClient.Connect 是同步阻塞调用，放到线程池执行
+                await Task.Run(() => _manualClient.Connect(device.DeviceAddress, BluetoothService.SerialPort), token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Stop 已在别处清理，无需重复
+                return;
+            }
+            catch (Exception ex)
+            {
+                NotifyException($"连接蓝牙设备失败: {ex.Message}");
+                Stop();
+                return;
+            }
+
+            // 连接成功：更新状态并启动接收循环
+            NotifyMonitorStarted($"已连接到 {bluetoothDeviceName}");
+            _isMonitoring = true;
+            _ = ReceiveLoopAsync(_manualClient, token);
+        }
+
+        /// <summary>
+        /// 同步连接（保留以兼容 IBluetoothCommunicator.ConnectToDevice 的同步语义）
+        /// </summary>
         public void SetMaster(string bluetoothDeviceName)
         {
             _manualClient?.Close();
             _manualClient = new BluetoothClient();
             if (!BthDevices.TryGetValue(bluetoothDeviceName, out var device))
             {
-                OnStatusChanged(new Result(Result.NETStatus.ExceptionStop, $"未找到蓝牙设备: {bluetoothDeviceName}"));
+                NotifyException($"未找到蓝牙设备: {bluetoothDeviceName}");
                 return;
             }
             _manualClient.Connect(device.DeviceAddress, BluetoothService.SerialPort);
+            NotifyMonitorStarted($"已连接到 {bluetoothDeviceName}");
+            _isMonitoring = true;
             _ = Task.Run(() => ReceiveLoopAsync(_manualClient, _cts.Token));
         }
 
@@ -246,22 +271,6 @@ namespace UpperApp.Communication
             });
         }
 
-        public IReadOnlyList<string> GetPeerList() => BthClients.connectionKeys;
-
-        public ValueTask DisposeAsync()
-        {
-            Stop();
-            GC.SuppressFinalize(this);
-            return ValueTask.CompletedTask;
-        }
-
-        private void OnStatusChanged(Result result)
-        {
-            if (result.Channel == ChannelType.Unknown)
-                result = result with { Channel = ChannelType.Bluetooth };
-            if (result.NetStatus == Result.NETStatus.ExceptionStop)
-                State = DeviceState.Error;
-            StatusChanged?.Invoke(result);
-        }
+        public override IReadOnlyList<string> GetPeerList() => BthClients.connectionKeys;
     }
 }

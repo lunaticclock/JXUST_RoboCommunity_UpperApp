@@ -1,5 +1,4 @@
 using UpperApp.Core;
-using UpperApp.UI;
 
 namespace UpperApp.Commands
 {

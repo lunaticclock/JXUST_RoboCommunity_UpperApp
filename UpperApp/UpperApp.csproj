@@ -94,8 +94,4 @@
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
     </None>
   </ItemGroup>
-  <ItemGroup>
-    <Page Remove="MainWindow_DesignV2.xaml" />
-    <None Include="MainWindow_DesignV2.xaml" />
-  </ItemGroup>
 </Project>

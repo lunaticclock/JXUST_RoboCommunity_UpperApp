@@ -23,6 +23,8 @@ namespace UpperApp
             if (DataContext is MainViewModel vm)
             {
                 vm.SetMapTracker(_mapTracker);
+                // 注入流式日志输出，利用 TextBox.AppendText 增量更新
+                vm.SetLogSink(new TextBoxLogSink(RecvTextBox, maxLength: 500_000));
             }
         }
 

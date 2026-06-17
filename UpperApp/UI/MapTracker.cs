@@ -14,7 +14,7 @@ namespace UpperApp.UI
         private float _aspectRatio = 1.0f;
         private Point? _startPoint;
         private Point? _endPoint;
-        private readonly List<Polyline> _tracks = new();
+        private readonly List<Polyline> _tracks = [];
         private Polyline _currentTrack;
         private double _lastX = -1, _lastY = -1;
 
@@ -47,6 +47,8 @@ namespace UpperApp.UI
 
             if (_lastX < 0)
             {
+                // Canvas 未完成布局时 ActualWidth/ActualHeight 可能为 0，跳过本次避免起点落在左上角
+                if (_canvas.ActualWidth <= 0 || _canvas.ActualHeight <= 0) return;
                 _lastX = _canvas.ActualWidth / 2;
                 _lastY = _canvas.ActualHeight / 2;
             }
@@ -106,7 +108,7 @@ namespace UpperApp.UI
                     X2 = _endPoint.Value.X, Y2 = _endPoint.Value.Y,
                     Stroke = Brushes.Yellow,
                     StrokeThickness = 1,
-                    StrokeDashArray = new DoubleCollection { 4, 2 }
+                    StrokeDashArray = [4, 2]
                 };
                 _canvas.Children.Add(line);
             }
@@ -124,7 +126,7 @@ namespace UpperApp.UI
                     {
                         Stroke = Brushes.Yellow,
                         StrokeThickness = 1,
-                        StrokeDashArray = new DoubleCollection { 4, 2 },
+                        StrokeDashArray = [4, 2],
                         Opacity = 0.5
                     };
                     _canvas.Children.Add(_previewLine);

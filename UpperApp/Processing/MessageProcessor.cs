@@ -1,3 +1,4 @@
+using System;
 using System.Text;
 using UpperApp.Core;
 using UpperApp.Services;
@@ -7,36 +8,38 @@ namespace UpperApp.Processing
     internal class MessageProcessor
     {
         private readonly ILogger _logger;
+        private readonly Func<bool> _logEnabled;
 
-        public MessageProcessor(ILogger logger)
+        public MessageProcessor(ILogger logger, Func<bool> logEnabled = null)
         {
             _logger = logger;
+            _logEnabled = logEnabled ?? (() => true);
         }
 
-        public ProcessedMessage ProcessReceivedMessage(Result result)
+        public ProcessedMessage ProcessReceivedMessage(MessageReceivedEvent evt)
         {
-            if (result.NetStatus != Result.NETStatus.ReciveMessage)
-                return null;
-
             string prefix = "";
-            string rawContent = result.Message;
-            string newPeerHint = result.NewPeer ?? "";
+            string rawContent = evt.Content;
+            string newPeerHint = evt.PeerHint ?? "";
 
-            if (!string.IsNullOrEmpty(result.IPPort))
+            if (!string.IsNullOrEmpty(evt.Source))
             {
-                prefix = $"from {result.IPPort}:\r\n";
+                prefix = $"from {evt.Source}:\r\n";
             }
 
-            bool hasAttitude = !string.IsNullOrEmpty(rawContent) && rawContent.Contains("/OVER");
+            // 统一通过 ProtocolHandler 解析姿态数据，避免 Contains + TryParse 重复检测
+            var parsed = ProtocolHandler.TryParse(rawContent);
+            bool hasAttitude = parsed.HasValue;
             string attitudeRaw = hasAttitude ? rawContent : "";
 
             string formatted = rawContent;
             if (!rawContent.EndsWith("\r\n") && !rawContent.EndsWith("\n"))
                 formatted += "\r\n";
 
-            if (!string.IsNullOrEmpty(rawContent))
+            // 日志受 SaveDataEnabled 开关控制，避免无条件写入
+            if (_logEnabled() && !string.IsNullOrEmpty(rawContent))
             {
-                _logger.WriteLine($"[{Utils.GetTime()}] RECV [{result.Channel}]: {rawContent.TrimEnd()}");
+                _logger.WriteLine($"[{Utils.GetTime()}] RECV [{evt.Channel}]: {rawContent.TrimEnd()}");
             }
 
             return new ProcessedMessage
@@ -44,40 +47,11 @@ namespace UpperApp.Processing
                 Prefix = prefix,
                 FormattedContent = formatted,
                 RawContent = rawContent,
-                Source = result.RemoteIP ?? result.IPPort ?? "",
-                ByteCount = result.Num,
+                Source = evt.Source ?? "",
+                ByteCount = evt.ByteCount,
                 NewPeerHint = newPeerHint,
                 HasAttitudeData = hasAttitude,
                 AttitudeRaw = attitudeRaw
-            };
-        }
-
-        public ProcessedMessage ProcessSentMessage(Result result)
-        {
-            if (result.NetStatus != Result.NETStatus.SendMessage)
-                return null;
-
-            string prefix = "";
-            if (!string.IsNullOrEmpty(result.RemoteIP))
-                prefix = $"to {result.RemoteIP}:\r\n";
-
-            string rawContent = result.Message ?? "";
-            string formatted = rawContent;
-            if (!rawContent.EndsWith("\r\n") && !rawContent.EndsWith("\n"))
-                formatted += "\r\n";
-
-            _logger.WriteLine($"[{Utils.GetTime()}] SEND [{result.Channel}]: {rawContent.TrimEnd()}");
-
-            return new ProcessedMessage
-            {
-                Prefix = prefix,
-                FormattedContent = formatted,
-                RawContent = rawContent,
-                Source = result.RemoteIP ?? "",
-                ByteCount = result.Num,
-                NewPeerHint = "",
-                HasAttitudeData = false,
-                AttitudeRaw = ""
             };
         }
     }

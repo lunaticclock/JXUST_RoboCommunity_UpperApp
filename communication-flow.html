@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小车上位机 V7.0 - 通信流程可视化</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+    background: #0d1117;
+    color: #e6edf3;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ===== 顶部标题栏 ===== */
+  .header {
+    background: linear-gradient(135deg, #161b22 0%, #1c2333 100%);
+    border-bottom: 1px solid #30363d;
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .header h1 {
+    font-size: 20px;
+    font-weight: 600;
+    background: linear-gradient(90deg, #58a6ff, #bc8cff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .header .subtitle {
+    font-size: 13px;
+    color: #8b949e;
+    margin-top: 2px;
+  }
+
+  /* ===== 场景切换 ===== */
+  .scene-tabs {
+    display: flex;
+    gap: 8px;
+  }
+  .scene-tab {
+    padding: 8px 18px;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    background: #21262d;
+    color: #8b949e;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.25s;
+    font-weight: 500;
+  }
+  .scene-tab:hover { border-color: #58a6ff; color: #e6edf3; }
+  .scene-tab.active {
+    background: linear-gradient(135deg, #1f6feb33, #23863633);
+    border-color: #58a6ff;
+    color: #e6edf3;
+    box-shadow: 0 0 12px #58a6ff33;
+  }
+  .scene-tab.send.active { border-color: #3fb950; box-shadow: 0 0 12px #3fb95033; }
+  .scene-tab.recv.active { border-color: #f0883e; box-shadow: 0 0 12px #f0883e33; }
+  .scene-tab.boot.active { border-color: #bc8cff; box-shadow: 0 0 12px #bc8cff33; }
+
+  /* ===== 主布局 ===== */
+  .main {
+    display: flex;
+    height: calc(100vh - 65px);
+  }
+
+  /* ===== 左侧架构图 ===== */
+  .arch-panel {
+    flex: 1;
+    padding: 24px 32px;
+    overflow-y: auto;
+    position: relative;
+  }
+  .arch-panel::-webkit-scrollbar { width: 6px; }
+  .arch-panel::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+
+  .arch-title {
+    font-size: 14px;
+    color: #8b949e;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  /* 层卡片容器 */
+  .layers {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: relative;
+  }
+
+  /* 连接线 */
+  .connector {
+    height: 28px;
+    width: 2px;
+    background: #30363d;
+    margin: 0 auto;
+    position: relative;
+    transition: background 0.3s;
+  }
+  .connector.active { background: #58a6ff; box-shadow: 0 0 8px #58a6ff; }
+  .connector.active.send { background: #3fb950; box-shadow: 0 0 8px #3fb950; }
+  .connector.active.recv { background: #f0883e; box-shadow: 0 0 8px #f0883e; }
+
+  /* 层卡片 */
+  .layer {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: all 0.35s;
+    position: relative;
+    min-height: 64px;
+  }
+  .layer.active {
+    border-color: #58a6ff;
+    background: linear-gradient(135deg, #161b22, #1f6feb15);
+    box-shadow: 0 0 20px #58a6ff22, inset 0 0 20px #58a6ff08;
+    transform: scale(1.02);
+  }
+  .layer.active.send {
+    border-color: #3fb950;
+    background: linear-gradient(135deg, #161b22, #23863615);
+    box-shadow: 0 0 20px #3fb95022, inset 0 0 20px #3fb95008;
+  }
+  .layer.active.recv {
+    border-color: #f0883e;
+    background: linear-gradient(135deg, #161b22, #f0883e15);
+    box-shadow: 0 0 20px #f0883e22, inset 0 0 20px #f0883e08;
+  }
+  .layer.active.boot {
+    border-color: #bc8cff;
+    background: linear-gradient(135deg, #161b22, #bc8cff15);
+    box-shadow: 0 0 20px #bc8cff22, inset 0 0 20px #bc8cff08;
+  }
+
+  .layer-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+    background: #21262d;
+    border: 1px solid #30363d;
+  }
+  .layer.active .layer-icon { background: #30363d; }
+
+  .layer-info { flex: 1; }
+  .layer-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #e6edf3;
+    margin-bottom: 2px;
+  }
+  .layer-classes {
+    font-size: 12px;
+    color: #8b949e;
+    font-family: 'Consolas', 'Courier New', monospace;
+  }
+  .layer-classes .cls { color: #79c0ff; }
+  .layer-desc {
+    font-size: 11px;
+    color: #6e7681;
+    margin-top: 3px;
+  }
+
+  /* 数据包 */
+  .data-packet {
+    position: absolute;
+    left: 50%;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    transform: translateX(-50%);
+    transition: top 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s;
+    z-index: 10;
+    opacity: 0;
+  }
+  .data-packet.send {
+    background: #3fb950;
+    box-shadow: 0 0 16px #3fb950, 0 0 32px #3fb95088;
+  }
+  .data-packet.recv {
+    background: #f0883e;
+    box-shadow: 0 0 16px #f0883e, 0 0 32px #f0883e88;
+  }
+  .data-packet.boot {
+    background: #bc8cff;
+    box-shadow: 0 0 16px #bc8cff, 0 0 32px #bc8cff88;
+  }
+  .data-packet.visible { opacity: 1; }
+
+  /* 数据包标签 */
+  .packet-label {
+    position: absolute;
+    left: 24px;
+    top: -10px;
+    font-size: 11px;
+    font-family: 'Consolas', monospace;
+    white-space: nowrap;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #21262d;
+    border: 1px solid #30363d;
+    color: #e6edf3;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .data-packet.visible .packet-label { opacity: 1; }
+
+  /* ===== 右侧步骤说明 ===== */
+  .step-panel {
+    width: 380px;
+    background: #161b22;
+    border-left: 1px solid #30363d;
+    padding: 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .step-panel::-webkit-scrollbar { width: 6px; }
+  .step-panel::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+
+  .step-header {
+    font-size: 14px;
+    color: #8b949e;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .step-counter {
+    background: #21262d;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    color: #58a6ff;
+    border: 1px solid #30363d;
+  }
+
+  .step-content {
+    flex: 1;
+  }
+
+  .step-card {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 12px;
+    animation: fadeIn 0.4s;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .step-card.current {
+    border-color: #58a6ff;
+    box-shadow: 0 0 16px #58a6ff22;
+  }
+  .step-card.current.send { border-color: #3fb950; box-shadow: 0 0 16px #3fb95022; }
+  .step-card.current.recv { border-color: #f0883e; box-shadow: 0 0 16px #f0883e22; }
+  .step-card.current.boot { border-color: #bc8cff; box-shadow: 0 0 16px #bc8cff22; }
+
+  .step-num {
+    font-size: 11px;
+    color: #6e7681;
+    margin-bottom: 4px;
+  }
+  .step-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .step-desc {
+    font-size: 13px;
+    color: #8b949e;
+    line-height: 1.6;
+    margin-bottom: 8px;
+  }
+  .step-code {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: #79c0ff;
+    overflow-x: auto;
+    white-space: pre;
+    line-height: 1.5;
+  }
+  .step-code .kw { color: #ff7b72; }
+  .step-code .str { color: #a5d6ff; }
+  .step-code .cmt { color: #6e7681; }
+  .step-code .fn { color: #d2a8ff; }
+  .step-code .type { color: #ffa657; }
+
+  /* ===== 底部控制栏 ===== */
+  .controls {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #161b22;
+    border-top: 1px solid #30363d;
+    padding: 12px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 100;
+  }
+  .btn {
+    padding: 8px 20px;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    background: #21262d;
+    color: #e6edf3;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+  }
+  .btn:hover { border-color: #58a6ff; background: #30363d; }
+  .btn.primary {
+    background: linear-gradient(135deg, #238636, #2ea043);
+    border-color: #238636;
+    color: #fff;
+  }
+  .btn.primary:hover { background: linear-gradient(135deg, #2ea043, #3fb950); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .speed-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    font-size: 12px;
+    color: #8b949e;
+  }
+  .speed-control input[type="range"] {
+    width: 120px;
+    accent-color: #58a6ff;
+  }
+
+  .progress-bar {
+    flex: 1;
+    height: 4px;
+    background: #21262d;
+    border-radius: 2px;
+    overflow: hidden;
+    max-width: 300px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #58a6ff, #bc8cff);
+    width: 0%;
+    transition: width 0.3s;
+  }
+  .progress-fill.send { background: linear-gradient(90deg, #3fb950, #58a6ff); }
+  .progress-fill.recv { background: linear-gradient(90deg, #f0883e, #f0883e); }
+  .progress-fill.boot { background: linear-gradient(90deg, #bc8cff, #bc8cff); }
+
+  /* 回流标记 */
+  .flow-tag {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .flow-tag.visible { opacity: 1; }
+  .flow-tag.send { background: #23863633; color: #3fb950; border: 1px solid #3fb95055; }
+  .flow-tag.recv { background: #f0883e33; color: #f0883e; border: 1px solid #f0883e55; }
+  .flow-tag.event { background: #bc8cff33; color: #bc8cff; border: 1px solid #bc8cff55; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>小车上位机 V7.0 · 通信流程可视化</h1>
+    <div class="subtitle">分层架构 / 数据流向 / 事件回调</div>
+  </div>
+  <div class="scene-tabs">
+    <div class="scene-tab send active" data-scene="send">📤 发送流程</div>
+    <div class="scene-tab recv" data-scene="recv">📥 接收流程</div>
+    <div class="scene-tab boot" data-scene="boot">🚀 启动流程</div>
+  </div>
+</div>
+
+<div class="main">
+  <!-- 左侧架构图 -->
+  <div class="arch-panel">
+    <div class="arch-title">📐 分层架构（数据自上而下流动）</div>
+    <div class="layers" id="layers">
+      <!-- 由 JS 动态生成 -->
+    </div>
+  </div>
+
+  <!-- 右侧步骤说明 -->
+  <div class="step-panel">
+    <div class="step-header">
+      <span>📋 执行步骤</span>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+    <div class="step-content" id="stepContent">
+      <div class="step-card">
+        <div class="step-title" style="color:#8b949e">点击「播放」开始演示</div>
+        <div class="step-desc">选择上方场景标签切换不同流程，观察数据在各层之间的流动。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 底部控制栏 -->
+<div class="controls">
+  <button class="btn primary" id="playBtn">▶ 播放</button>
+  <button class="btn" id="resetBtn">↺ 重置</button>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <div class="speed-control">
+    <span>速度</span>
+    <input type="range" id="speedSlider" min="0.5" max="3" step="0.5" value="1.5">
+    <span id="speedLabel">1.5x</span>
+  </div>
+</div>
+
+<script>
+// ===== 层定义 =====
+const layers = [
+  { id: 'ui',    icon: '🖥️', name: 'UI 层',         classes: 'MainWindow.xaml · JoystickControl · TextBox',         desc: '用户界面 · 交互输入 · 数据展示' },
+  { id: 'vm',    icon: '🧠', name: 'ViewModel 层',  classes: 'MainViewModel · RelayCommand · AsyncRelayCommand',    desc: '命令处理 · 属性绑定 · 状态管理' },
+  { id: 'cmd',   icon: '📦', name: 'Commands 层',   classes: 'MoveCommand : IDeviceCommand',                        desc: '命令模式 · 协议编码' },
+  { id: 'svc',   icon: '⚙️', name: 'Services 层',   classes: 'DeviceService · DataPipeline · AppServices',          desc: '通道管理 · 事件转发 · 数据管道' },
+  { id: 'comm',  icon: '📡', name: 'Communication 层', classes: 'CommunicatorBase → Serial/TCP/UDP/BT/CAN/WS',     desc: 'I/O 读写 · 字节编解码 · 连接管理' },
+  { id: 'proc',  icon: '🔧', name: 'Processing 层', classes: 'MessageProcessor · FileLogger',                      desc: '消息格式化 · 日志记录 · 姿态解析' },
+  { id: 'hw',    icon: '🤖', name: '物理设备',       classes: '串口模块 · 蓝牙模块 · TCP/UDP · CAN 总线',           desc: '小车 MCU · 传感器 · 执行器' },
+];
+
+// ===== 场景步骤定义 =====
+const scenes = {
+  send: {
+    color: 'send',
+    label: '📤 发送流程：用户操作 → 物理设备',
+    steps: [
+      {
+        layer: 'ui', tag: 'send', tagText: '用户输入',
+        title: '用户拖动摇杆',
+        desc: '用户在 JoystickControl 上拖动 thumb，MouseMove 事件触发，计算 Speed/Direction 值（0-100）。',
+        code: '<span class="cmt">// JoystickControl.cs</span>\n<span class="kw">void</span> <span class="fn">Thumb_MouseMove</span>(...) {\n  Speed = <span class="fn">Round</span>(50 - dy/r*50);\n  Direction = <span class="fn">Round</span>(50 + dx/r*50);\n  <span class="cmt">// TwoWay 绑定同步到 VM</span>\n}'
+      },
+      {
+        layer: 'vm', tag: 'send', tagText: '属性设置',
+        title: 'FbValue/RlValue 属性更新',
+        desc: 'TwoWay 绑定将摇杆值同步到 MainViewModel.FbValue / RlValue，setter 调用 OnSliderChanged()。',
+        code: '<span class="cmt">// MainViewModel.cs</span>\n<span class="kw">public int</span> FbValue {\n  <span class="kw">get</span> => _fbValue;\n  <span class="kw">set</span> => <span class="kw">if</span> (<span class="fn">SetField</span>(<span class="kw">ref</span> _fbValue, value))\n           <span class="fn">OnSliderChanged</span>();\n}'
+      },
+      {
+        layer: 'vm', tag: 'send', tagText: '节流标记',
+        title: 'OnSliderChanged 节流',
+        desc: '为避免高频 MouseMove 导致同步 I/O 阻塞 UI，只标记 _rockerDirty = true，不立即发送。',
+        code: '<span class="cmt">// MainViewModel.cs</span>\n<span class="kw">void</span> <span class="fn">OnSliderChanged</span>() {\n  <span class="cmt">// 只标记脏，不直接发送</span>\n  _rockerDirty = <span class="kw">true</span>;\n}'
+      },
+      {
+        layer: 'vm', tag: 'event', tagText: '定时器触发',
+        title: 'RockerSendTimer_Tick 批量发送',
+        desc: '50ms 间隔的 DispatcherTimer 检查脏标记，合并连续拖动为单次发送，降低 I/O 频率。',
+        code: '<span class="cmt">// 每 50ms 触发</span>\n<span class="kw">void</span> <span class="fn">RockerSendTimer_Tick</span>(...) {\n  <span class="kw">if</span> (!_rockerDirty) <span class="kw">return</span>;\n  _rockerDirty = <span class="kw">false</span>;\n  <span class="fn">TryExecuteCommand</span>(\n    <span class="kw">new</span> <span class="type">MoveCommand</span>(...));\n}'
+      },
+      {
+        layer: 'cmd', tag: 'send', tagText: '命令编码',
+        title: 'MoveCommand.Encode() 协议编码',
+        desc: 'MoveCommand 封装速度/方向数据，Encode() 调用 ProtocolFormatter 生成协议字符串。',
+        code: '<span class="cmt">// MoveCommand.cs</span>\n<span class="kw">public string</span> <span class="fn">Encode</span>() => Type <span class="kw">switch</span> {\n  FullControl => \n    <span class="str">"FR:{speed}:{dir}:OVER\\r\\n"</span>,\n  ForwardBackward => \n    <span class="str">"FB:{speed}:OVER\\r\\n"</span>\n};'
+      },
+      {
+        layer: 'svc', tag: 'send', tagText: '通道查找',
+        title: 'DeviceService.TryExecuteCommand',
+        desc: '根据 ActiveChannel 从缓存查找 ICommunicator，检查连接状态，解析目标地址，调用 comm.Send()。',
+        code: '<span class="cmt">// DeviceService.cs</span>\n<span class="kw">lock</span> (_cacheLock) {\n  <span class="kw">if</span> (!_cache.<span class="fn">TryGetValue</span>(\n      channel, <span class="kw">out</span> comm))\n    <span class="kw">return false</span>;\n}\ncomm.<span class="fn">Send</span>(command.<span class="fn">Encode</span>(), target);'
+      },
+      {
+        layer: 'comm', tag: 'send', tagText: '字节写入',
+        title: 'Communicator.Send() I/O 写入',
+        desc: '具体通信器（如 BthManager）将字符串编码为字节，通过底层库写入物理通道，然后触发 StatusChanged 事件。',
+        code: '<span class="cmt">// BthManager.cs</span>\n<span class="kw">byte</span>[] buffer = UTF8.<span class="fn">GetBytes</span>(data);\nclient.<span class="fn">GetStream</span>().<span class="fn">Write</span>(buffer);\n<span class="fn">OnStatusChanged</span>(<span class="kw">new</span> <span class="type">Result</span>(\n  SendMessage, data, buffer.Length));'
+      },
+      {
+        layer: 'hw', tag: 'send', tagText: '数据到达',
+        title: '数据到达物理设备',
+        desc: '字节流通过蓝牙/串口/TCP 等物理通道传输到小车 MCU，MCU 解析协议指令执行运动控制。',
+        code: '<span class="cmt">// 协议格式</span>\nFR:80:60:OVER\\r\\n\n<span class="cmt">│  │  │  │</span>\n<span class="cmt">│  │  │  └ 结束符</span>\n<span class="cmt">│  │  └─── 方向(0-100)</span>\n<span class="cmt">│  └────── 速度(0-100)</span>\n<span class="cmt">└───────── 全控指令</span>'
+      },
+      {
+        layer: 'svc', tag: 'event', tagText: '事件回流',
+        title: 'StatusChanged 事件向上传播',
+        desc: 'Communicator 触发 StatusChanged(SendMessage) → DeviceService.OnCommunicatorStatusChanged 转发 → MainViewModel.UnifiedStatusChanged。',
+        code: '<span class="cmt">// 事件链回流</span>\nCommunicator.<span class="fn">OnStatusChanged</span>(result)\n  → DeviceService.<span class="fn">OnCommunicatorStatusChanged</span>\n  → VM.<span class="fn">UnifiedStatusChanged</span>(result)'
+      },
+      {
+        layer: 'vm', tag: 'event', tagText: '回显处理',
+        title: 'UnifiedStatusChanged 处理回显',
+        desc: 'Dispatcher.BeginInvoke 切到 UI 线程，MessageProcessor.ProcessSentMessage 格式化，若 LocalEcho 开启则追加到接收区。',
+        code: '<span class="cmt">// MainViewModel.cs</span>\n<span class="kw">case</span> SendMessage:\n  <span class="kw">var</span> sent = _msgProcessor\n    .<span class="fn">ProcessSentMessage</span>(status);\n  <span class="kw">if</span> (LocalEcho)\n    <span class="fn">AppendRecvText</span>(displayContent);\n  <span class="cmt">// 增量插入，不全量刷新</span>'
+      },
+      {
+        layer: 'ui', tag: 'send', tagText: 'UI 更新',
+        title: '接收区回显 + 计数更新',
+        desc: 'TextBoxLogSink.AppendText 增量插入文本（O(log n)），更新 TxCount 发送字节计数。整个发送-回显流程完成。',
+        code: '<span class="cmt">// TextBoxLogSink.cs</span>\n_textBox.<span class="fn">AppendText</span>(text);\n<span class="cmt">// 走 TextContainer.InsertText</span>\n<span class="cmt">// 增量插入，不全量重绘</span>'
+      }
+    ]
+  },
+
+  recv: {
+    color: 'recv',
+    label: '📥 接收流程：物理设备 → UI',
+    steps: [
+      {
+        layer: 'hw', tag: 'recv', tagText: '设备发送',
+        title: '小车 MCU 发送姿态数据',
+        desc: '小车传感器采集姿态数据（Yaw/Pitch/Roll/Distance），按协议格式编码后通过蓝牙/串口发送。',
+        code: '<span class="cmt">// 小车发送的协议帧</span>\nYAW:45.5/OVER\nPIT:12.3/OVER\nDIS:1.25/OVER\n<span class="cmt">// 包含 /OVER 标记</span>'
+      },
+      {
+        layer: 'comm', tag: 'recv', tagText: '字节接收',
+        title: 'Communicator 接收回调',
+        desc: '底层库（如 BluetoothClient）的接收回调被触发，将字节缓冲区解码为字符串，构造 Result 对象。',
+        code: '<span class="cmt">// BthManager.ReceiveLoopAsync</span>\n<span class="kw">int</span> n = <span class="kw">await</span> stream.<span class="fn">ReadAsync</span>(buffer);\n<span class="kw">string</span> data = UTF8.<span class="fn">GetString</span>(buffer, 0, n);\n<span class="fn">OnStatusChanged</span>(<span class="kw">new</span> <span class="type">Result</span>(\n  ReciveMessage, data, n));'
+      },
+      {
+        layer: 'svc', tag: 'event', tagText: '事件转发',
+        title: 'DeviceService 转发 StatusChanged',
+        desc: 'CommunicatorBase.OnStatusChanged → DeviceService.OnCommunicatorStatusChanged → MainViewModel.UnifiedStatusChanged，事件逐层向上传播。',
+        code: '<span class="cmt">// CommunicatorBase.cs</span>\n<span class="kw">protected void</span> <span class="fn">OnStatusChanged</span>(result) {\n  StatusChanged?.<span class="fn">Invoke</span>(result);\n  <span class="cmt">// → DeviceService 转发</span>\n  <span class="cmt">// → VM.UnifiedStatusChanged</span>\n}'
+      },
+      {
+        layer: 'vm', tag: 'recv', tagText: '入队管道',
+        title: 'UnifiedStatusChanged 入队 DataPipeline',
+        desc: '收到 ReciveMessage 后不直接处理，而是 TryEnqueue 到 Channel 队列，实现生产者-消费者解耦，避免阻塞 I/O 线程。',
+        code: '<span class="cmt">// MainViewModel.cs</span>\n<span class="kw">case</span> ReciveMessage:\n  _receivePipeline\n    .<span class="fn">TryEnqueue</span>(status);\n  <span class="cmt">// Channel<Result> 有界队列</span>\n  <span class="cmt">// 容量 1024，满时丢最旧</span>'
+      },
+      {
+        layer: 'svc', tag: 'recv', tagText: '后台消费',
+        title: 'DataPipeline 后台消费循环',
+        desc: 'Channel 的消费者在后台线程读取数据，调用 DispatchReceivedData 处理。将耗时处理移出 I/O 线程，防止接收阻塞。',
+        code: '<span class="cmt">// DataPipeline.cs</span>\n<span class="kw">await foreach</span> (<span class="kw">var</span> item\n  <span class="kw">in</span> _channel.Reader\n      .<span class="fn">ReadAllAsync</span>(token)) {\n  _processor(item); <span class="cmt">// DispatchReceivedData</span>\n}'
+      },
+      {
+        layer: 'proc', tag: 'recv', tagText: '消息处理',
+        title: 'MessageProcessor.ProcessReceivedMessage',
+        desc: '格式化消息内容（补 \\r\\n）、生成来源前缀、检测姿态数据（含 /OVER）、写入文件日志，返回 ProcessedMessage。',
+        code: '<span class="cmt">// MessageProcessor.cs</span>\n<span class="kw">bool</span> hasAttitude = raw\n  .<span class="fn">Contains</span>(<span class="str">"/OVER"</span>);\n_logger.<span class="fn">WriteLine</span>(\n  <span class="str">$"[{time}] RECV: {raw}"</span>);\n<span class="kw">return new</span> <span class="type">ProcessedMessage</span> {...};'
+      },
+      {
+        layer: 'vm', tag: 'event', tagText: '切回UI线程',
+        title: 'DispatchReceivedData → Dispatcher.BeginInvoke',
+        desc: '在后台线程完成处理后，通过 Dispatcher.BeginInvoke 切回 UI 线程，因为 TextBox 只能在 UI 线程访问。',
+        code: '<span class="cmt">// MainViewModel.cs</span>\nApplication.Current.Dispatcher\n  .<span class="fn">BeginInvoke</span>(() => {\n    <span class="fn">AppendRecvText</span>(displayContent);\n    <span class="kw">if</span> (hasAttitude)\n      <span class="fn">SetAngDisp</span>(attitudeRaw);\n  });'
+      },
+      {
+        layer: 'ui', tag: 'recv', tagText: 'UI 渲染',
+        title: '接收区更新 + 姿态卡片 + 地图轨迹',
+        desc: 'TextBoxLogSink 增量追加文本，RxCount 计数更新。若含姿态数据，ProtocolHandler 解析后更新 Yaw/Pitch/Roll/Distance，MapTracker 绘制行走轨迹。',
+        code: '<span class="cmt">// 三处 UI 更新</span>\n1. AppendText → 接收区文本\n2. SetAngDisp → 姿态卡片数值\n3. MapTracker.OnDistanceChanged\n   → Canvas 绘制轨迹线\n<span class="cmt">// 全部增量更新，不全量刷新</span>'
+      }
+    ]
+  },
+
+  boot: {
+    color: 'boot',
+    label: '🚀 启动流程：程序初始化',
+    steps: [
+      {
+        layer: 'ui', tag: 'boot', tagText: '程序入口',
+        title: 'App.OnStartup',
+        desc: 'WPF 应用启动，App.xaml.cs 的 OnStartup 调用 AppServices.ConfigureServices() 注册全局服务。',
+        code: '<span class="cmt">// App.xaml.cs</span>\n<span class="kw">protected override void</span> <span class="fn">OnStartup</span>(e) {\n  AppServices.<span class="fn">ConfigureServices</span>();\n  <span class="kw">base</span>.<span class="fn">OnStartup</span>(e);\n  <span class="cmt">// StartupUri="MainWindow.xaml"</span>\n}'
+      },
+      {
+        layer: 'svc', tag: 'boot', tagText: '服务注册',
+        title: 'AppServices.ConfigureServices',
+        desc: '创建 CommunicatorFactory（工厂模式）、JsonFileConfigStorage（配置存储）、BthManager（蓝牙单例）、DeviceService（设备管理核心）。',
+        code: '<span class="cmt">// AppServices.cs</span>\n<span class="kw">var</span> factory = <span class="kw">new</span> <span class="type">CommunicatorFactory</span>();\n<span class="fn">RegisterSingleton</span>&lt;ICommunicatorFactory&gt;(factory);\n<span class="kw">var</span> bt = (<span class="type">IBluetoothCommunicator</span>)\n  factory.<span class="fn">Create</span>(Bluetooth);\n<span class="kw">var</span> svc = <span class="kw">new</span> <span class="type">DeviceService</span>(factory, bt);'
+      },
+      {
+        layer: 'ui', tag: 'boot', tagText: '窗口创建',
+        title: 'MainWindow 构造',
+        desc: 'MainWindow 构造函数调用 InitializeComponent() 加载 XAML，创建 MainViewModel 作为 DataContext。',
+        code: '<span class="cmt">// MainWindow.xaml.cs</span>\n<span class="kw">public</span> <span class="fn">MainWindow</span>() {\n  <span class="fn">InitializeComponent</span>();\n  DataContext = <span class="kw">new</span> <span class="type">MainViewModel</span>();\n  Loaded += MainWindow_Loaded;\n}'
+      },
+      {
+        layer: 'vm', tag: 'boot', tagText: 'VM初始化',
+        title: 'MainViewModel 构造函数',
+        desc: '从 AppServices 获取服务实例，订阅 StatusChanged 事件，创建 DataPipeline、DispatcherTimer，注册所有 Command，加载配置。',
+        code: '<span class="cmt">// MainViewModel.cs</span>\n_deviceService = AppServices\n  .<span class="fn">GetService</span>&lt;DeviceService&gt;();\n_deviceService.StatusChanged\n  += UnifiedStatusChanged;\n_receivePipeline = <span class="kw">new</span>(\n  DispatchReceivedData);\n_receivePipeline.<span class="fn">Start</span>();\n<span class="cmt">// + 3 个 DispatcherTimer</span>\n<span class="cmt">// + 17 个 Command 注册</span>'
+      },
+      {
+        layer: 'svc', tag: 'boot', tagText: '工厂就绪',
+        title: 'CommunicatorFactory 按需创建',
+        desc: '工厂注册了 6 种通道创建方法。DeviceService 内部缓存 Dictionary<ChannelType, ICommunicator>，首次使用某通道时才创建实例（懒加载）。',
+        code: '<span class="cmt">// CommunicatorFactory.cs</span>\nchannel <span class="kw">switch</span> {\n  Serial => <span class="kw">new</span> <span class="type">TouchSocketSerialAdapter</span>(),\n  TCP => <span class="kw">new</span> <span class="type">TouchSocketTcpAdapter</span>(),\n  Bluetooth => <span class="kw">new</span> <span class="type">BthManager</span>(),\n  CAN => <span class="kw">new</span> <span class="type">CANManager</span>(),\n  ...\n}'
+      },
+      {
+        layer: 'comm', tag: 'boot', tagText: '蓝牙预热',
+        title: 'BthManager 启动即创建',
+        desc: '蓝牙管理器在 ConfigureServices 时就创建（非懒加载），因为需要检测蓝牙 Radio 状态。其他通道（Serial/TCP/UDP/CAN/WS）按需创建。',
+        code: '<span class="cmt">// BthManager 构造</span>\n<span class="kw">public</span> <span class="fn">BthManager</span>() {\n  Br = BluetoothRadio.Default;\n  <span class="cmt">// 立即检测蓝牙硬件</span>\n}\n<span class="cmt">// DeviceService 构造时</span>\n_cache[Bluetooth] = bt;\nbt.StatusChanged += OnStatusChanged;'
+      },
+      {
+        layer: 'ui', tag: 'boot', tagText: 'Loaded注入',
+        title: 'MainWindow_Loaded 注入依赖',
+        desc: '窗口加载完成后，创建 MapTracker 绑定到 Canvas，注入 TextBoxLogSink 到 ViewModel（实现 ILogSink 接口，走增量 AppendText）。',
+        code: '<span class="cmt">// MainWindow_Loaded</span>\n_mapTracker = <span class="kw">new</span> <span class="type">MapTracker</span>(MapCanvas);\nvm.<span class="fn">SetMapTracker</span>(_mapTracker);\nvm.<span class="fn">SetLogSink</span>(\n  <span class="kw">new</span> <span class="type">TextBoxLogSink</span>(\n    RecvTextBox, 500_000));\n<span class="cmt">// 启动完成，等待用户操作</span>'
+      }
+    ]
+  }
+};
+
+// ===== 状态 =====
+let currentScene = 'send';
+let currentStep = 0;
+let isPlaying = false;
+let playTimer = null;
+let speed = 1.5;
+
+// ===== 渲染层 =====
+function renderLayers() {
+  const container = document.getElementById('layers');
+  container.innerHTML = '';
+
+  layers.forEach((layer, i) => {
+    const layerEl = document.createElement('div');
+    layerEl.className = 'layer';
+    layerEl.id = `layer-${layer.id}`;
+    layerEl.innerHTML = `
+      <div class="layer-icon">${layer.icon}</div>
+      <div class="layer-info">
+        <div class="layer-name">${layer.name}</div>
+        <div class="layer-classes">${layer.classes}</div>
+        <div class="layer-desc">${layer.desc}</div>
+      </div>
+      <div class="flow-tag" id="tag-${layer.id}"></div>
+    `;
+    container.appendChild(layerEl);
+
+    // 数据包（每层一个，定位到该层中心）
+    const packet = document.createElement('div');
+    packet.className = 'data-packet';
+    packet.id = `packet-${layer.id}`;
+    packet.innerHTML = '<div class="packet-label" id="label-' + layer.id + '"></div>';
+    layerEl.appendChild(packet);
+
+    // 连接线（除最后一层）
+    if (i < layers.length - 1) {
+      const connector = document.createElement('div');
+      connector.className = 'connector';
+      connector.id = `conn-${layer.id}`;
+      container.appendChild(connector);
+    }
+  });
+}
+
+// ===== 渲染步骤说明 =====
+function renderSteps() {
+  const scene = scenes[currentScene];
+  const container = document.getElementById('stepContent');
+  container.innerHTML = '';
+
+  scene.steps.forEach((step, i) => {
+    const card = document.createElement('div');
+    card.className = `step-card ${i === currentStep ? 'current ' + scene.color : ''}`;
+    card.id = `step-card-${i}`;
+    card.innerHTML = `
+      <div class="step-num">步骤 ${i + 1} / ${scene.steps.length}</div>
+      <div class="step-title">${step.title}</div>
+      <div class="step-desc">${step.desc}</div>
+      <div class="step-code">${step.code}</div>
+    `;
+    container.appendChild(card);
+  });
+
+  document.getElementById('stepCounter').textContent = `${currentStep + 1} / ${scene.steps.length}`;
+}
+
+// ===== 高亮当前步骤 =====
+function highlightStep() {
+  const scene = scenes[currentScene];
+  const step = scene.steps[currentStep];
+
+  // 清除所有层的高亮
+  document.querySelectorAll('.layer').forEach(el => {
+    el.classList.remove('active', 'send', 'recv', 'boot');
+  });
+  document.querySelectorAll('.connector').forEach(el => {
+    el.classList.remove('active', 'send', 'recv', 'boot');
+  });
+  document.querySelectorAll('.flow-tag').forEach(el => {
+    el.classList.remove('visible', 'send', 'recv', 'event');
+  });
+  document.querySelectorAll('.data-packet').forEach(el => {
+    el.classList.remove('visible', 'send', 'recv', 'boot');
+  });
+
+  // 高亮当前层
+  const layerEl = document.getElementById(`layer-${step.layer}`);
+  if (layerEl) {
+    layerEl.classList.add('active', scene.color);
+  }
+
+  // 显示标签
+  const tagEl = document.getElementById(`tag-${step.layer}`);
+  if (tagEl) {
+    tagEl.textContent = step.tagText;
+    tagEl.classList.add('visible', step.tag);
+  }
+
+  // 显示数据包
+  const packetEl = document.getElementById(`packet-${step.layer}`);
+  if (packetEl) {
+    packetEl.classList.add('visible', scene.color);
+  }
+
+  // 高亮连接线（当前层到下一层）
+  const connEl = document.getElementById(`conn-${step.layer}`);
+  if (connEl) {
+    connEl.classList.add('active', scene.color);
+  }
+
+  // 滚动到当前步骤卡片
+  const cardEl = document.getElementById(`step-card-${currentStep}`);
+  if (cardEl) {
+    cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  // 更新进度条
+  const progress = ((currentStep + 1) / scene.steps.length) * 100;
+  const fillEl = document.getElementById('progressFill');
+  fillEl.className = 'progress-fill ' + scene.color;
+  fillEl.style.width = progress + '%';
+}
+
+// ===== 播放控制 =====
+function play() {
+  if (isPlaying) return;
+  isPlaying = true;
+  document.getElementById('playBtn').innerHTML = '⏸ 暂停';
+
+  const scene = scenes[currentScene];
+  const interval = 2500 / speed;
+
+  playTimer = setInterval(() => {
+    currentStep++;
+    if (currentStep >= scene.steps.length) {
+      currentStep = 0;
+    }
+    renderSteps();
+    highlightStep();
+  }, interval);
+}
+
+function pause() {
+  isPlaying = false;
+  document.getElementById('playBtn').innerHTML = '▶ 播放';
+  if (playTimer) {
+    clearInterval(playTimer);
+    playTimer = null;
+  }
+}
+
+function reset() {
+  pause();
+  currentStep = 0;
+  renderSteps();
+  highlightStep();
+}
+
+function switchScene(sceneName) {
+  pause();
+  currentScene = sceneName;
+  currentStep = 0;
+
+  // 更新标签状态
+  document.querySelectorAll('.scene-tab').forEach(el => {
+    el.classList.remove('active');
+  });
+  document.querySelector(`.scene-tab[data-scene="${sceneName}"]`).classList.add('active');
+
+  renderSteps();
+  highlightStep();
+}
+
+// ===== 事件绑定 =====
+document.getElementById('playBtn').addEventListener('click', () => {
+  if (isPlaying) pause();
+  else play();
+});
+
+document.getElementById('resetBtn').addEventListener('click', reset);
+
+document.getElementById('speedSlider').addEventListener('input', (e) => {
+  speed = parseFloat(e.target.value);
+  document.getElementById('speedLabel').textContent = speed + 'x';
+  if (isPlaying) {
+    pause();
+    play();
+  }
+});
+
+document.querySelectorAll('.scene-tab').forEach(el => {
+  el.addEventListener('click', () => {
+    switchScene(el.dataset.scene);
+  });
+});
+
+// 点击步骤卡片跳转
+document.getElementById('stepContent').addEventListener('click', (e) => {
+  const card = e.target.closest('.step-card');
+  if (card && card.id) {
+    const idx = parseInt(card.id.split('-')[2]);
+    if (!isNaN(idx)) {
+      pause();
+      currentStep = idx;
+      renderSteps();
+      highlightStep();
+    }
+  }
+});
+
+// 点击层卡片跳转到该层的第一步
+document.getElementById('layers').addEventListener('click', (e) => {
+  const layer = e.target.closest('.layer');
+  if (layer && layer.id) {
+    const layerId = layer.id.replace('layer-', '');
+    const scene = scenes[currentScene];
+    const idx = scene.steps.findIndex(s => s.layer === layerId);
+    if (idx >= 0) {
+      pause();
+      currentStep = idx;
+      renderSteps();
+      highlightStep();
+    }
+  }
+});
+
+// ===== 初始化 =====
+renderLayers();
+renderSteps();
+highlightStep();
+</script>
+
+</body>
+</html>

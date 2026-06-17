@@ -1,18 +1,24 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
-using System.Runtime.Versioning;
 using System.Text;
 
 namespace UpperApp.Core
 {
-    [SupportedOSPlatform("windows10.0.19041.0")]
     public static class Utils
     {
+        private static readonly Encoding TextEncoding;
+
+        static Utils()
+        {
+            // 必须先注册编码提供程序，再创建 GB2312 编码实例
+            // （字段初始化器会先于静态构造函数体执行，所以不能在字段声明处直接 GetEncoding）
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            TextEncoding = Encoding.GetEncoding("GB2312");
+        }
+
         public static string GetTime()
         {
             return "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff") + "]";
@@ -22,18 +28,19 @@ namespace UpperApp.Core
         {
             if (string.IsNullOrEmpty(str)) return string.Empty;
             var sb = new StringBuilder();
-            foreach (char c in str)
+            byte[] bytes = TextEncoding.GetBytes(str);
+            for (int i = 0; i < bytes.Length; i++)
             {
-                sb.Append(' ');
-                sb.Append(((int)c).ToString("X2"));
+                if (i > 0) sb.Append(' ');
+                sb.Append(bytes[i].ToString("X2"));
             }
-            return sb.ToString().TrimStart();
+            return sb.ToString();
         }
 
         public static string HexStringToString(string hexString)
         {
             if (string.IsNullOrWhiteSpace(hexString)) return null;
-            string[] parts = hexString.Trim().Split(' ');
+            string[] parts = hexString.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
             byte[] bytes = new byte[parts.Length];
             try
             {
@@ -41,7 +48,7 @@ namespace UpperApp.Core
                 {
                     bytes[i] = Convert.ToByte(parts[i], 16);
                 }
-                return Encoding.ASCII.GetString(bytes);
+                return TextEncoding.GetString(bytes);
             }
             catch
             {

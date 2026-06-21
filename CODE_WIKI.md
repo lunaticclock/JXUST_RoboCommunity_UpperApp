@@ -29,7 +29,8 @@
 - **运动控制**：通过虚拟摇杆实时发送运动指令（速度、方向），50ms 节流避免高频 I/O
 - **数据收发与显示**：接收下位机数据并以字符/十六进制模式展示，支持本地回显
 - **Hex 模式原始字节发送**：Hex 模式下直接发送用户指定的字节序列，绕过字符编码
-- **姿态显示**：解析并显示 YAW/PITCH/ROLL 角度及航程距离
+- **姿态显示**：解析并显示 YAW/PITCH/ROLL 角度及航程距离（飞机姿态仪风格仪表组）
+- **通信监控**：实时收发流量曲线（60 秒滑动窗口）+ 6 通道连接状态指示灯条
 - **批量字串发送**：预设最多 8 条消息，每条独立 HEX/ASCII 开关
 - **行走路线绘制**：基于地图图片与距离标定，实时绘制小车行走轨迹
 - **自动发送**：定时循环发送指定内容
@@ -173,6 +174,10 @@ JXUST_RoboCommunity_UpperApp/
     ├── UI/                                   # UI 自定义控件与辅助组件
     │   ├── JoystickControl.cs                # 虚拟摇杆控件（节流优化）
     │   ├── MapTracker.cs                     # 地图轨迹绘制逻辑
+    │   ├── AttitudeGauges.cs                 # 姿态仪表三件套（Compass/Roll/Pitch）
+    │   ├── DistanceGauge.cs                  # 航程仪表盘（半圆弧指针式，自适应量程）
+    │   ├── TrafficChart.cs                   # 收发流量曲线（60 秒滑动窗口）
+    │   ├── ChannelStatusIndicator.cs         # 通道连接状态指示灯条
     │   ├── ILogSink.cs                       # 日志接收接口
     │   ├── MetricItem.xaml/.cs               # 指标显示控件
     │   ├── MetricLabel.xaml/.cs              # 指标标签控件
@@ -240,6 +245,9 @@ WPF 应用入口，执行以下操作：
 | `_sendTimer` | `DispatcherTimer` | 自动发送定时器 |
 | `_rockerSendTimer` | `DispatcherTimer` | 摇杆发送节流定时器（50ms） |
 | `_rockerDirty` | `volatile bool` | 摇杆值变化脏标记 |
+| `_monitorTimer` | `DispatcherTimer` | 通信监控定时器（1s：流量采样 + 通道状态轮询） |
+| `_trafficChart` | `TrafficChart` | 流量曲线控件引用（View 注入，调用 PushSample） |
+| `_lastRxCount` / `_lastTxCount` | `int` | 上一秒 Rx/Tx 字节计数（用于计算增量） |
 
 **统一发送入口**（避免事件回流冗余）：
 
@@ -260,6 +268,11 @@ WPF 应用入口，执行以下操作：
 - `OnSliderChanged` 只设 `_rockerDirty = true`，不直接发送
 - `_rockerSendTimer` 每 50ms 检查 dirty 标记，有变化才发送
 - 避免 MouseMove 高频触发同步 I/O 阻塞 UI 线程
+
+**通信监控机制**（`_monitorTimer`，1 秒间隔）：
+- 流量采样：计算 `_rxCount`/`_txCount` 与上一秒的增量，调用 `_trafficChart.PushSample(rxDelta, txDelta)`
+- 通道状态轮询：遍历 6 个 `ChannelType` 调用 `DeviceService.GetChannelState`，映射为状态码字符串（0=断开/1=连接中/2=已连接/3=异常）写入 `ChannelStates` 属性
+- View 通过 `SetTrafficChart(TrafficChart)` 注入控件引用
 
 #### `PresetMessageViewModel` — 批量字串子 VM
 
@@ -287,7 +300,7 @@ WPF 应用入口，执行以下操作：
 
 | 方法/属性 | 说明 |
 |------|------|
-| `GetChannelState(ChannelType)` | 获取指定通道状态 |
+| `GetChannelState(ChannelType)` | 获取指定通道状态（未创建时返回 Disconnected，供监控轮询） |
 | `IsChannelReady(ChannelType)` | 指定通道是否已连接 |
 | `IsAnyChannelReady()` | 是否有任意通道已连接 |
 | `ActiveChannel` | 当前活跃发送通道 |
@@ -534,6 +547,77 @@ Error         → 异常状态
 
 ---
 
+### 4.9 姿态仪表与通信监控可视化
+
+本组控件全部采用 **WPF 自绘**（`Control` + `OnRender` + `DrawingContext`），无 XAML 模板，性能优于组合控件。统一使用 `DependencyProperty` + `AffectsRender` 标志实现绑定驱动的重绘。
+
+#### `AttitudeGauges.cs` — 姿态仪表三件套
+
+飞机姿态仪风格，三个独立控件封装在同一文件：
+
+| 控件 | 绑定属性 | 视觉表现 |
+|------|---------|---------|
+| **`CompassGauge`** | `Angle` (YAW) | 圆形罗盘，外圈刻度随角度旋转，顶部固定三角标指示当前航向 |
+| **`RollGauge`** | `Angle` (ROLL) | 圆形姿态仪，天蓝/棕色地平线随横滚角旋转，`EllipseGeometry` 圆形裁剪防止矩形角部超出边界 |
+| **`PitchGauge`** | `Angle` (PITCH) | 俯仰梯形刻度尺，中央水平线为基准，上下平移指示俯仰角 |
+
+**共用模式**：
+- `Angle` 为 `string` 类型（兼容绑定），`ParseAngle` 解析为 `double`
+- 静态画刷/画笔缓存（`static readonly`），避免每次 `OnRender` 重建
+- `Typeface` 直接由字符串构造：`new Typeface("Microsoft YaHei UI, Segoe UI, sans-serif")`
+
+**RollGauge 圆形裁剪**（关键修复）：
+```
+dc.PushClip(new EllipseGeometry(center, r, r));  // 圆形裁剪
+dc.PushTransform(new RotateTransform(roll, cx, cy));  // 旋转地平线
+dc.DrawRectangle(SkyBrush, ...);   // 用 r*4 尺寸的矩形确保旋转后仍覆盖圆形
+dc.Pop();  // 退出旋转
+dc.Pop();  // 退出裁剪
+dc.DrawEllipse(null, BorderPen, ...);  // 边框在裁剪外画，保证完整
+```
+
+#### `DistanceGauge` — 航程仪表盘
+
+半圆弧指针式仪表盘，替代原航程 `MetricItem`。
+
+| 特性 | 说明 |
+|------|------|
+| 绑定属性 | `Distance` (string) |
+| 量程自适应 | 当前值超过量程 80% 自动翻倍扩容（10→20→50→100…），低于 20% 缩容 |
+| 弧度范围 | 270° 半圆弧（StartAngle=-135, SweepAngle=270） |
+| 视觉元素 | 青色进度弧 + 橙色指针 + 中心数值 + 量程标签 |
+| 格式化 | `FormatDistance`: ≥1000 显示 "Xk"，≥100 显示整数，否则保留 1 位小数 |
+| 弧线绘制 | `ArcSegment` + `PathGeometry` 辅助方法 `DrawArc` |
+
+#### `TrafficChart` — 收发流量曲线
+
+60 秒滑动窗口实时曲线，调试通信流量刚需。
+
+| 成员 | 说明 |
+|------|------|
+| `PushSample(int rxBytes, int txBytes)` | 推入一秒采样数据（VM 定时器每秒调用） |
+| 内部存储 | `Queue<int> _rx` / `_tx`，`MaxSamples = 60`，满后 Dequeue 最旧 |
+| 纵轴自适应 | 根据当前 60 秒最大值动态计算 Y 轴量程 |
+| 曲线 | Rx 绿线 / Tx 蓝线，`BuildPolyline` 构建 `StreamGeometry` |
+| 辅助元素 | 网格线、Y 轴标签（`FormatBytes`: ≥1024 显示 "X.XK"）、X 轴时间标签、图例 |
+| 内边距 | `padL=32, padR=6, padT=6, padB=12`（紧凑布局适配 80px 高度） |
+
+#### `ChannelStatusIndicator` — 通道连接状态指示灯条
+
+横向排列 6 个通道状态点 + 标签。
+
+| 成员 | 说明 |
+|------|------|
+| 绑定属性 | `States` (string)，分号分隔的 6 位状态码 |
+| 通道顺序 | Serial / TCP / UDP / BT / WS / CAN |
+| 状态码 | 0=断开（灰）/ 1=连接中（黄）/ 2=已连接（绿，带发光）/ 3=异常（红） |
+| 解析 | `ParseStates` 分号拆分 + `int.TryParse`，容错缺失位 |
+| 视觉 | 已连接状态额外画半透明大圆模拟发光效果 |
+
+**布局位置**：通信监控卡片位于中间面板（数据收发区）Row 3，包含 `TrafficChart` + `ChannelStatusIndicator`，与数据收发主题契合，不占用运动控制面板空间。
+
+---
+
 ## 5. 关键类与数据结构
 
 ### 5.1 `StatusEvent` — 多态通信状态事件层次
@@ -775,8 +859,31 @@ dotnet run --project UpperApp/UpperApp.csproj
 - `Utils` 静态字段初始化顺序问题导致 GB2312 编码获取失败
 - 修复：`RegisterProvider` 移到静态构造函数体最前，字段改为构造函数内赋值
 
+#### 9.8 姿态仪表与通信监控可视化
+
+**姿态仪表三件套**（`AttitudeGauges.cs`）：
+- 飞机姿态仪风格替代原纯文本 `MetricItem` 显示
+- `CompassGauge`（YAW 罗盘）/ `RollGauge`（横滚姿态仪）/ `PitchGauge`（俯仰刻度尺）
+- `RollGauge` 圆形裁剪修复：旋转地平线矩形角部超出圆形边界 → `EllipseGeometry` + `PushClip`
+
+**航程仪表盘**（`DistanceGauge.cs`）：
+- 半圆弧指针式替代原 `MetricItem`，自适应量程（10→100…）
+
+**收发流量曲线**（`TrafficChart.cs`）：
+- 60 秒滑动窗口，Rx 绿/Tx 蓝双曲线，纵轴自适应
+- VM `_monitorTimer` 每秒计算 Rx/Tx 增量调用 `PushSample`
+
+**通道连接状态指示**（`ChannelStatusIndicator.cs`）：
+- 6 通道灯条（Serial/TCP/UDP/BT/WS/CAN），灰/黄/绿/红四态
+- VM 每秒轮询 `DeviceService.GetChannelState` 更新 `ChannelStates` 字符串
+
+**支撑改动**：
+- `DeviceService` 新增 `GetChannelState(ChannelType)` 方法（未创建通道返回 Disconnected）
+- `MainViewModel` 新增 `_monitorTimer` / `ChannelStates` 属性 / `SetTrafficChart` 注入方法
+- 通信监控卡片布局于中间面板 Row 3（数据收发区下方），不占用运动控制面板空间
+
 ---
 
-> **文档版本**: 4.0  
+> **文档版本**: 5.0  
 > **更新日期**: 2026-06-17  
 > **对应项目版本**: V7.0 (WPF + MVVM 重构后)

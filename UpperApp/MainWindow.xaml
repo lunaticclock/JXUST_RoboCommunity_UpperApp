@@ -385,7 +385,6 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0">
@@ -393,14 +392,10 @@
                             <TextBlock Text="偏航" Style="{StaticResource DataLabel}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1">
-                            <ui:RollGauge Angle="{Binding Roll}"/>
-                            <TextBlock Text="横滚" Style="{StaticResource DataLabel}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                            <ui:AttitudeIndicator Roll="{Binding Roll}" Pitch="{Binding Pitch}"/>
+                            <TextBlock Text="姿态（横滚/俯仰）" Style="{StaticResource DataLabel}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
                         </StackPanel>
                         <StackPanel Grid.Column="2">
-                            <ui:PitchGauge Angle="{Binding Pitch}"/>
-                            <TextBlock Text="俯仰" Style="{StaticResource DataLabel}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="3">
                             <ui:DistanceGauge Distance="{Binding Distance}"/>
                             <TextBlock Text="航程" Style="{StaticResource DataLabel}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
                         </StackPanel>

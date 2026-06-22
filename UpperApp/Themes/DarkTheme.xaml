@@ -616,26 +616,20 @@
 
     <!-- ===== 姿态仪表样式 ===== -->
     <Style TargetType="ui:CompassGauge">
-        <Setter Property="Width" Value="90"/>
-        <Setter Property="Height" Value="90"/>
+        <Setter Property="Width" Value="100"/>
+        <Setter Property="Height" Value="100"/>
         <Setter Property="HorizontalAlignment" Value="Center"/>
     </Style>
 
-    <Style TargetType="ui:RollGauge">
-        <Setter Property="Width" Value="90"/>
-        <Setter Property="Height" Value="90"/>
-        <Setter Property="HorizontalAlignment" Value="Center"/>
-    </Style>
-
-    <Style TargetType="ui:PitchGauge">
-        <Setter Property="Width" Value="90"/>
-        <Setter Property="Height" Value="90"/>
+    <Style TargetType="ui:AttitudeIndicator">
+        <Setter Property="Width" Value="100"/>
+        <Setter Property="Height" Value="100"/>
         <Setter Property="HorizontalAlignment" Value="Center"/>
     </Style>
 
     <Style TargetType="ui:DistanceGauge">
-        <Setter Property="Width" Value="90"/>
-        <Setter Property="Height" Value="90"/>
+        <Setter Property="Width" Value="100"/>
+        <Setter Property="Height" Value="100"/>
         <Setter Property="HorizontalAlignment" Value="Center"/>
     </Style>
 

@@ -15,8 +15,9 @@ namespace UpperApp.UI
 
     /// <summary>
     /// 航程仪表盘。半圆弧指针式，自适应量程显示累计距离。
+    /// 指针采用指数衰减平滑过渡，模拟真实仪表阻尼。
     /// </summary>
-    public class DistanceGauge : Control
+    public class DistanceGauge : AnimatedGaugeBase
     {
         static DistanceGauge()
         {
@@ -26,7 +27,7 @@ namespace UpperApp.UI
 
         public static readonly DependencyProperty DistanceProperty =
             DependencyProperty.Register(nameof(Distance), typeof(string), typeof(DistanceGauge),
-                new FrameworkPropertyMetadata("0", FrameworkPropertyMetadataOptions.AffectsRender));
+                new FrameworkPropertyMetadata("0", OnDistanceChanged));
 
         /// <summary>距离字符串（米）</summary>
         public string Distance
@@ -35,17 +36,40 @@ namespace UpperApp.UI
             set => SetValue(DistanceProperty, value);
         }
 
+        private static void OnDistanceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is DistanceGauge g)
+                g.SetTargetValue(ParseDouble((string)e.NewValue));
+        }
+
+        // 距离用稍慢的过渡，避免数字跳动太快
+        protected override double LerpFactor => 0.12;
+
         // 自适应量程：当前值超过 80% 时扩容
         private double _range = 10;
 
+        // FormattedText 缓存：刻度标签（range 不变时复用）、中心数值、单位
+        private TextCache[]? _tickLabels;
+        private double _lastRange = -1;
+        private readonly TextCache _valText = new(FontFace);
+        private readonly TextCache _unitText = new(FontFace);
+
         protected override void OnRender(DrawingContext dc)
         {
-            double dist = ParseDouble(Distance);
+            double dist = CurrentValue;
             if (dist < 0) dist = 0;
 
             // 自适应量程
             while (dist > _range * 0.8) _range *= 2;
             while (_range > 10 && dist < _range * 0.2) _range /= 2;
+
+            // 刻度标签缓存：range 变化时才重建 TextCache 数组
+            if (_tickLabels == null || _range != _lastRange)
+            {
+                _lastRange = _range;
+                _tickLabels = new TextCache[6];
+                for (int i = 0; i < 6; i++) _tickLabels[i] = new TextCache(FontFace);
+            }
 
             double w = ActualWidth;
             double h = ActualHeight;
@@ -80,13 +104,12 @@ namespace UpperApp.UI
                 double y2 = cy + Math.Sin(rad) * (r - 2);
                 dc.DrawLine(TickPen, new Point(x1, y1), new Point(x2, y2));
 
-                // 刻度标签
+                // 刻度标签（缓存）
                 double labelVal = _range * t;
                 string label = FormatDistance(labelVal);
                 double lx = cx + Math.Cos(rad) * (r - 18);
                 double ly = cy + Math.Sin(rad) * (r - 18);
-                var fmt = new FormattedText(label, CultureInfo.CurrentCulture,
-                    FlowDirection.LeftToRight, FontFace, 8, TextMuted, 1);
+                var fmt = _tickLabels[i].Get(label, 8, TextMuted);
                 dc.DrawText(fmt, new Point(lx - fmt.Width / 2, ly - fmt.Height / 2));
             }
 
@@ -99,15 +122,13 @@ namespace UpperApp.UI
             // 指针中心圆
             dc.DrawEllipse(Brushes.OrangeRed, null, new Point(cx, cy), 4, 4);
 
-            // 中心数值
+            // 中心数值（缓存）
             string distText = FormatDistance(dist);
-            var text = new FormattedText(distText, CultureInfo.CurrentCulture,
-                FlowDirection.LeftToRight, FontFace, 14, TextPrimary, 1);
+            var text = _valText.Get(distText, 14, TextPrimary);
             dc.DrawText(text, new Point(cx - text.Width / 2, cy - r * 0.45 - text.Height / 2));
 
-            // 单位
-            var unit = new FormattedText("m", CultureInfo.CurrentCulture,
-                FlowDirection.LeftToRight, FontFace, 9, TextMuted, 1);
+            // 单位（缓存）
+            var unit = _unitText.Get("m", 9, TextMuted);
             dc.DrawText(unit, new Point(cx - unit.Width / 2, cy - r * 0.45 + text.Height / 2 - 2));
         }
 

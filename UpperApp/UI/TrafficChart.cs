@@ -17,6 +17,8 @@ namespace UpperApp.UI
 
     /// <summary>
     /// 收发流量曲线。显示最近 60 秒的 Rx/Tx 每秒字节数。
+    /// 初始化时预填 60 个 0，使曲线始终占满整个时间轴：
+    /// 新采样从右侧（最新秒）推入，旧数据从左侧推出，避免"数据不足补0到右边界"造成的斜线。
     /// </summary>
     public class TrafficChart : Control
     {
@@ -30,13 +32,23 @@ namespace UpperApp.UI
                 new FrameworkPropertyMetadata(typeof(TrafficChart)));
         }
 
-        /// <summary>推入一秒的流量采样（由 VM 定时器调用）</summary>
+        public TrafficChart()
+        {
+            // 预填 60 个 0，使曲线一开始就占满整个时间轴（底部水平线）
+            for (int i = 0; i < MaxSamples; i++)
+            {
+                _rx.Enqueue(0);
+                _tx.Enqueue(0);
+            }
+        }
+
+        /// <summary>推入一秒的流量采样（由 VM 定时器调用）。新数据进入队列末尾（最右侧=最新秒）。</summary>
         public void PushSample(int rxBytes, int txBytes)
         {
             _rx.Enqueue(rxBytes);
             _tx.Enqueue(txBytes);
-            while (_rx.Count > MaxSamples) _rx.Dequeue();
-            while (_tx.Count > MaxSamples) _tx.Dequeue();
+            _rx.Dequeue();
+            _tx.Dequeue();
             InvalidateVisual();
         }
 
@@ -113,7 +125,6 @@ namespace UpperApp.UI
             var geo = new PathGeometry();
             var fig = new PathFigure();
             bool first = true;
-            int count = data.Count;
             int idx = 0;
             foreach (var v in data)
             {
@@ -122,13 +133,6 @@ namespace UpperApp.UI
                 if (first) { fig.StartPoint = new Point(x, y); first = false; }
                 else fig.Segments.Add(new LineSegment(new Point(x, y), true));
                 idx++;
-            }
-            // 如果数据不足 maxSamples，最后补到右边界
-            if (count > 0 && count < maxSamples)
-            {
-                double x = padL + chartW;
-                double y = padT + chartH * (1 - 0 / yMax);
-                fig.Segments.Add(new LineSegment(new Point(x, y), true));
             }
             geo.Figures.Add(fig);
             return geo;

@@ -42,8 +42,9 @@ namespace UpperApp.UI
                 g.SetTargetValue(ParseDouble((string)e.NewValue));
         }
 
-        // 距离用稍慢的过渡，避免数字跳动太快
-        protected override double LerpFactor => 0.12;
+        // 距离用较慢的刚度，避免数字跳动太快（k=40, c=13 略过阻尼）
+        protected override double Stiffness => 40;
+        protected override double Damping => 13;
 
         // 自适应量程：当前值超过 80% 时扩容
         private double _range = 10;

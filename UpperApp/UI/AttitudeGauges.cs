@@ -20,27 +20,38 @@ namespace UpperApp.UI
     // ================================================================
 
     /// <summary>
-    /// 独立动画值：封装单个值的指数衰减平滑过渡。
-    /// 可被任意控件持有多个实例（如 AttitudeIndicator 同时动画 Roll 和 Pitch）。
+    /// 独立动画值：二阶阻尼弹簧系统，模拟真实机械仪表的惯性。
+    /// 相比一阶指数衰减，有"加速→减速→停止"的过程，更有质量感。
+    /// 
+    /// 物理模型：质量 m=1 的物体被弹簧拉向目标，受阻尼力影响。
+    ///   F = k * (target - current) - c * velocity
+    ///   acceleration = F / m
+    ///   velocity += acceleration * dt
+    ///   current += velocity * dt
+    ///   
+    /// 临界阻尼条件：c = 2 * sqrt(k)，此时最快到达目标且不振荡。
     /// </summary>
     public sealed class AnimatedValue
     {
         private double _current;
+        private double _velocity;
         private double _target;
         private bool _animating;
+
         private readonly Action _invalidate;
-        private readonly double _lerpFactor;
-        private readonly double _epsilon;
+        private readonly double _stiffness;     // k：刚度，越大回正越快
+        private readonly double _damping;       // c：阻尼，越大震荡越小
         private readonly bool _shortestPath;
 
         /// <param name="invalidate">每帧动画推进时调用的重绘回调</param>
-        /// <param name="lerpFactor">每帧逼近比例，0.08=慢平滑，0.15=中，0.2=快</param>
+        /// <param name="stiffness">弹簧刚度 k（推荐 80）</param>
+        /// <param name="damping">阻尼系数 c（临界阻尼 = 2*sqrt(k)，k=80 时 c≈18）</param>
         /// <param name="shortestPath">是否走最短路径（YAW 这种 0-360 循环值）</param>
-        public AnimatedValue(Action invalidate, double lerpFactor = 0.08, double epsilon = 0.02, bool shortestPath = false)
+        public AnimatedValue(Action invalidate, double stiffness = 80, double damping = 18, bool shortestPath = false)
         {
             _invalidate = invalidate;
-            _lerpFactor = lerpFactor;
-            _epsilon = epsilon;
+            _stiffness = stiffness;
+            _damping = damping;
             _shortestPath = shortestPath;
         }
 
@@ -49,7 +60,7 @@ namespace UpperApp.UI
         public void SetTarget(double value)
         {
             _target = _shortestPath ? NormalizeAngle(value) : value;
-            if (!_animating && _current != _target)
+            if (!_animating)
             {
                 _animating = true;
                 CompositionTarget.Rendering += OnRendering;
@@ -58,6 +69,7 @@ namespace UpperApp.UI
 
         private void OnRendering(object sender, EventArgs e)
         {
+            const double dt = 1.0 / 60.0;
             double delta = _target - _current;
             if (_shortestPath)
             {
@@ -65,16 +77,19 @@ namespace UpperApp.UI
                 else if (delta < -180) delta += 360;
             }
 
-            if (Math.Abs(delta) < _epsilon)
+            // 二阶阻尼弹簧：F = k*delta - c*v
+            double force = _stiffness * delta - _damping * _velocity;
+            _velocity += force * dt;
+            _current += _velocity * dt;
+            if (_shortestPath) _current = NormalizeAngle(_current);
+
+            // 停止条件：位置接近目标且速度很小
+            if (Math.Abs(delta) < 0.05 && Math.Abs(_velocity) < 0.1)
             {
                 _current = _target;
+                _velocity = 0;
                 _animating = false;
                 CompositionTarget.Rendering -= OnRendering;
-            }
-            else
-            {
-                _current += delta * _lerpFactor;
-                if (_shortestPath) _current = NormalizeAngle(_current);
             }
             _invalidate();
         }
@@ -105,7 +120,7 @@ namespace UpperApp.UI
     }
 
     /// <summary>
-    /// 仪表动画基类：单值动画，子类通过 CurrentValue 读取动画值。
+    /// 仪表动画基类：单值二阶阻尼动画，子类通过 CurrentValue 读取动画值。
     /// </summary>
     public abstract class AnimatedGaugeBase : Control
     {
@@ -113,14 +128,14 @@ namespace UpperApp.UI
 
         protected AnimatedGaugeBase()
         {
-            _value = new AnimatedValue(InvalidateVisual, LerpFactor, Epsilon, UseShortestPath);
+            _value = new AnimatedValue(InvalidateVisual, Stiffness, Damping, UseShortestPath);
         }
 
-        /// <summary>每帧逼近目标的比例。0.08=慢平滑，0.15=中，0.2=快。</summary>
-        protected virtual double LerpFactor => 0.08;
+        /// <summary>弹簧刚度 k（越大回正越快，推荐 80）。</summary>
+        protected virtual double Stiffness => 80;
 
-        /// <summary>停止动画的最小差值阈值。</summary>
-        protected virtual double Epsilon => 0.02;
+        /// <summary>阻尼系数 c（临界阻尼 = 2*sqrt(k)，k=80 时 c≈18）。</summary>
+        protected virtual double Damping => 18;
 
         /// <summary>是否走最短路径（用于 YAW 这种 0-360 循环值）。</summary>
         protected virtual bool UseShortestPath => false;
@@ -249,8 +264,17 @@ namespace UpperApp.UI
     }
 
     /// <summary>
-    /// 姿态仪：合并横滚 + 俯仰，模拟真实飞机 Artificial Horizon。
-    /// 地平线随 ROLL 旋转、随 PITCH 上下平移，顶部固定三角标指示横滚，中心固定参考线指示俯仰。
+    /// 姿态仪：2D 伪 3D 球形地平仪 + 二阶阻尼动画。
+    /// 
+    /// 视觉特征：
+    /// - 圆形视窗内绘制球面投影
+    /// - 天空/地面用径向渐变模拟球面光照（中心亮、边缘暗）
+    /// - 地平线是椭圆弧（俯仰越大曲率越明显，模拟球面投影）
+    /// - 直线俯仰刻度（跟随地平线平移，清晰不干扰）
+    /// - 球面内容随 ROLL 旋转、随 PITCH 上下平移
+    /// - 固定的橙色翼形参考线（不随球面旋转）
+    /// 
+    /// 动画：二阶阻尼弹簧系统，有"加速→减速→停止"的机械仪表质感。
     /// </summary>
     public class AttitudeIndicator : Control
     {
@@ -296,14 +320,15 @@ namespace UpperApp.UI
                 g._pitchValue.SetTarget(ParseAngle((string)e.NewValue));
         }
 
-        // 两个独立的动画值（Roll 和 Pitch 各自平滑过渡）
+        // 两个独立的二阶阻尼动画值（Roll 和 Pitch 各自平滑过渡）
         private readonly AnimatedValue _rollValue;
         private readonly AnimatedValue _pitchValue;
 
         public AttitudeIndicator()
         {
-            _rollValue = new AnimatedValue(InvalidateVisual, lerpFactor: 0.08);
-            _pitchValue = new AnimatedValue(InvalidateVisual, lerpFactor: 0.08);
+            // k=80, c=18 临界阻尼，约 0.4s 到达，航空仪表风格
+            _rollValue = new AnimatedValue(InvalidateVisual, stiffness: 80, damping: 18);
+            _pitchValue = new AnimatedValue(InvalidateVisual, stiffness: 80, damping: 18);
         }
 
         // FormattedText / Geometry 缓存
@@ -322,49 +347,52 @@ namespace UpperApp.UI
             double cy = ActualHeight / 2;
             double r = size / 2 - 2;
 
-            // 圆形裁剪（缓存）
+            // 圆形裁剪 + Geometry 缓存（r 不变时复用）
             if (Math.Abs(r - _lastR) >= 0.5)
             {
                 _lastR = r;
                 _clipGeo = new EllipseGeometry(new Point(cx, cy), r, r);
                 RebuildRollPointer(cx, cy, r);
             }
-            dc.PushClip(_clipGeo);
 
-            // 外圈背景
+            // 1. 外圈背景（球面外的暗色环）
             dc.DrawEllipse(BgSecondary, null, new Point(cx, cy), r, r);
 
-            // 地平线区域：先按 ROLL 旋转，再按 PITCH 平移
+            // 2. 球面内容随 ROLL 旋转
+            dc.PushClip(_clipGeo);
             var rotate = new RotateTransform(roll, cx, cy);
             dc.PushTransform(rotate);
 
-            // PITCH 偏移：正值=机头上仰=地平线下移
-            double offset = pitch / 45.0 * r;
-            double horizonY = cy + offset;
+            // 3. 计算 PITCH 偏移
+            // pitch 正值=机头上仰=地平线下移（看到更多天空）
+            double pitchOffset = pitch / 90.0 * r;
+            double horizonY = cy + pitchOffset;
 
-            // 上半天蓝色（足够大的矩形，旋转后仍覆盖圆形）
-            dc.DrawRectangle(SkyBrush, null, new Rect(cx - r * 2, cy - r * 2 + offset, r * 4, r * 2));
-            // 下半棕色
-            dc.DrawRectangle(GroundBrush, null, new Rect(cx - r * 2, horizonY, r * 4, r * 2));
-            // 地平线
+            // 4. 画天空（整个圆形区域，径向渐变模拟球面光照）
+            dc.DrawEllipse(SkyGradient, null, new Point(cx, cy), r, r);
+
+            // 5. 画地面（地平线以下的矩形区域）
+            dc.DrawRectangle(GroundGradient, null, new Rect(cx - r * 2, horizonY, r * 4, r * 4));
+
+            // 6. 画地平线（直线，清晰直观）
             dc.DrawLine(HorizonPen, new Point(cx - r * 2, horizonY), new Point(cx + r * 2, horizonY));
 
-            // 俯仰刻度（每 10°，跟随地平线平移）
+            // 7. 直线俯仰刻度（每 10°，跟随地平线平移，清晰不干扰）
             for (int i = -4; i <= 4; i++)
             {
                 if (i == 0) continue;
-                double tickY = cy + i * 10 / 45.0 * r + offset;
+                double tickY = cy + i * 10 / 90.0 * r + pitchOffset;
                 double tickLen = (i % 2 == 0) ? 18 : 9;
                 dc.DrawLine(TickPen, new Point(cx - tickLen, tickY), new Point(cx + tickLen, tickY));
             }
 
-            dc.Pop(); // 退出旋转
+            dc.Pop(); // 退出 roll 旋转
             dc.Pop(); // 退出裁剪
 
-            // 外圈边框
+            // 8. 外圈边框
             dc.DrawEllipse(null, BorderPen, new Point(cx, cy), r, r);
 
-            // 横滚刻度（圆弧上，每 30°）
+            // 9. 横滚刻度（圆弧上，每 30°，固定不旋转）
             for (int i = -2; i <= 2; i++)
             {
                 double deg = i * 30;
@@ -376,16 +404,15 @@ namespace UpperApp.UI
                 dc.DrawLine(BorderPen, new Point(x1, y1), new Point(x2, y2));
             }
 
-            // 顶部固定三角标（橙色，指示横滚）
+            // 10. 顶部固定三角标（橙色，指示横滚）
             dc.DrawGeometry(Brushes.OrangeRed, null, _rollPointer);
 
-            // 中心固定参考线（俯仰指示，橙色翼形）
+            // 11. 中心固定橙色翼形参考线（俯仰指示，不随球面旋转）
             dc.DrawLine(ReferencePen, new Point(cx - r + 8, cy), new Point(cx - 14, cy));
             dc.DrawLine(ReferencePen, new Point(cx + 14, cy), new Point(cx + r - 8, cy));
-            // 中心圆点
             dc.DrawEllipse(Brushes.OrangeRed, null, new Point(cx, cy), 3, 3);
 
-            // 数值：左上 Roll，右上 Pitch（缓存）
+            // 12. 数值：左上 Roll，右上 Pitch（缓存）
             var rt = _rollText.Get($"R:{roll:F0}°", 10, TextPrimary);
             dc.DrawText(rt, new Point(cx - r + 4, cy - r + 4));
             var pt = _pitchText.Get($"P:{pitch:F0}°", 10, TextPrimary);
@@ -408,13 +435,47 @@ namespace UpperApp.UI
             return double.TryParse(s, NumberStyles.Float, CultureInfo.CurrentCulture, out double v) ? v : 0;
         }
 
+        // ===== 静态资源（避免每帧重建） =====
         private static readonly Brush BgSecondary = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x22));
         private static readonly Brush TextPrimary = new SolidColorBrush(Color.FromRgb(0xF0, 0xF0, 0xF5));
-        private static readonly Brush SkyBrush = new SolidColorBrush(Color.FromRgb(0x1A, 0x5C, 0x8A));
-        private static readonly Brush GroundBrush = new SolidColorBrush(Color.FromRgb(0x6B, 0x4A, 0x2A));
+
+        // 天空径向渐变：中心亮蓝 → 边缘深蓝（模拟球面光照）
+        private static readonly RadialGradientBrush SkyGradient = CreateSkyGradient();
+        private static RadialGradientBrush CreateSkyGradient()
+        {
+            var brush = new RadialGradientBrush
+            {
+                Center = new Point(0.5, 0.4),
+                RadiusX = 0.7,
+                RadiusY = 0.7,
+                GradientOrigin = new Point(0.5, 0.35)
+            };
+            brush.GradientStops.Add(new GradientStop(Color.FromRgb(0x4A, 0x9B, 0xD8), 0.0));  // 中心亮蓝
+            brush.GradientStops.Add(new GradientStop(Color.FromRgb(0x2A, 0x6B, 0xA8), 0.5));  // 中蓝
+            brush.GradientStops.Add(new GradientStop(Color.FromRgb(0x0A, 0x2A, 0x4A), 1.0));  // 边缘深蓝
+            return brush;
+        }
+
+        // 地面径向渐变：中心亮棕 → 边缘深棕
+        private static readonly RadialGradientBrush GroundGradient = CreateGroundGradient();
+        private static RadialGradientBrush CreateGroundGradient()
+        {
+            var brush = new RadialGradientBrush
+            {
+                Center = new Point(0.5, 0.6),
+                RadiusX = 0.7,
+                RadiusY = 0.7,
+                GradientOrigin = new Point(0.5, 0.65)
+            };
+            brush.GradientStops.Add(new GradientStop(Color.FromRgb(0x9B, 0x7B, 0x4A), 0.0));  // 中心亮棕
+            brush.GradientStops.Add(new GradientStop(Color.FromRgb(0x6B, 0x4A, 0x2A), 0.5));  // 中棕
+            brush.GradientStops.Add(new GradientStop(Color.FromRgb(0x3A, 0x2A, 0x1A), 1.0));  // 边缘深棕
+            return brush;
+        }
+
         private static readonly Pen BorderPen = new(new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x40)), 1);
-        private static readonly Pen HorizonPen = new(Brushes.White, 1.5);
-        private static readonly Pen TickPen = new(new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB8)), 1);
+        private static readonly Pen HorizonPen = new(Brushes.White, 2);
+        private static readonly Pen TickPen = new(new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xC0)), 1);
         private static readonly Pen ReferencePen = new(Brushes.OrangeRed, 2);
     }
 }

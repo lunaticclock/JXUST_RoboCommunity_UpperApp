@@ -205,11 +205,12 @@
                                 <TextBlock Text="{Binding MemUsage}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" FontFamily="{StaticResource FontMono}"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" Margin="0,0,16,0"/>
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Tx" Foreground="{StaticResource TextMutedBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,0,4,0"/>
-                                    <TextBlock Text="{Binding TxCount, Mode=OneWay}" Foreground="{StaticResource AccentBlueBrush}" FontSize="11" FontWeight="Bold" FontFamily="{StaticResource FontMono}"/>
-                                </StackPanel>
+                                <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                <!-- 同一个 TextBlock 内用 Run，保证 Tx 与数字共用基线 -->
+                                <TextBlock FontSize="11" VerticalAlignment="Center">
+                                    <Run Text="Tx " Foreground="{StaticResource TextMutedBrush}" FontWeight="SemiBold"/>
+                                    <Run Text="{Binding TxCount, Mode=OneWay}" Foreground="{StaticResource AccentBlueBrush}" FontWeight="Bold" FontFamily="{StaticResource FontMono}"/>
+                                </TextBlock>
                             </StackPanel>
                         </DockPanel>
                     </Border>

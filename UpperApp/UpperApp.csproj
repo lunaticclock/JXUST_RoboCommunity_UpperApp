@@ -73,14 +73,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="12.1.0" />
-    <PackageReference Include="Avalonia.Desktop" Version="12.1.0" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.0" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.0" />
-    <PackageReference Include="InTheHand.Net.Bluetooth" Version="4.2.4" />
+    <PackageReference Include="Avalonia" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.6" />
+    <PackageReference Include="InTheHand.Net.Bluetooth" Version="4.2.5" />
     <PackageReference Include="Peak.PCANBasic.NET" Version="5.1.0.1194" />
-    <PackageReference Include="System.IO.Ports" Version="10.0.9" />
-    <PackageReference Include="TouchSocket" Version="4.2.17" />
-    <PackageReference Include="TouchSocket.SerialPorts" Version="4.2.17" />
+    <PackageReference Include="ReactiveUI" Version="28.0.0" />
+    <PackageReference Include="System.IO.Ports" Version="11.0.0" />
+    <PackageReference Include="TouchSocket" Version="4.3.11" />
+    <PackageReference Include="TouchSocket.SerialPorts" Version="4.3.11" />
   </ItemGroup>
 </Project>

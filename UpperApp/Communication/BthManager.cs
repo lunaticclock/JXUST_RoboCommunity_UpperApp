@@ -100,7 +100,10 @@ namespace UpperApp.Communication
             {
                 while (!token.IsCancellationRequested)
                 {
-                    BluetoothClient client = await Task.Run(() => _listener!.AcceptBluetoothClient(), token);
+                    var listener = _listener;
+                    if (listener == null) break;
+
+                    BluetoothClient client = await Task.Run(() => listener.AcceptBluetoothClient(), token);
                     string deviceName = client.RemoteMachineName ?? "unknown";
                     BthClients.Add(deviceName, client);
                     NotifyPeerConnected(deviceName, "Got a request!\r\n");
@@ -117,6 +120,10 @@ namespace UpperApp.Communication
                 }
             }
             catch (OperationCanceledException) { }
+            catch (Exception) when (!_isMonitoring || token.IsCancellationRequested)
+            {
+                // Stop() 里关闭监听 socket 会中断阻塞的 Accept（WSACancelBlockingCall），属正常收尾
+            }
             catch (Exception ex)
             {
                 NotifyException($"监听异常: {ex.Message}");

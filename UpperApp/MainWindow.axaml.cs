@@ -2,7 +2,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Threading;
 using UpperApp.UI;
 using UpperApp.ViewModels;
 
@@ -38,11 +37,8 @@ namespace UpperApp
             var p = e.GetPosition(MapCanvas);
             _mapTracker?.OnMapClick(p, msg =>
             {
-                Dispatcher.UIThread.Post(() =>
-                {
-                    if (DataContext is MainViewModel vm)
-                        vm.AppendRecvText(msg);
-                });
+                if (DataContext is MainViewModel vm)
+                    vm.AppendRecvText(msg);
             });
 
             if (DataContext is MainViewModel vm2)

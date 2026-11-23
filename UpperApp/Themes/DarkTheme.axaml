@@ -256,7 +256,16 @@
                                   VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                   Background="{x:Null}">
                         <TextPresenter x:Name="PART_TextPresenter"
-                                       Text="{TemplateBinding Text}"/>
+                                       Text="{TemplateBinding Text}"
+                                       CaretIndex="{TemplateBinding CaretIndex}"
+                                       SelectionStart="{TemplateBinding SelectionStart}"
+                                       SelectionEnd="{TemplateBinding SelectionEnd}"
+                                       CaretBrush="{TemplateBinding CaretBrush}"
+                                       SelectionBrush="{TemplateBinding SelectionBrush}"
+                                       PasswordChar="{TemplateBinding PasswordChar}"
+                                       RevealPassword="{TemplateBinding RevealPassword}"
+                                       TextAlignment="{TemplateBinding TextAlignment}"
+                                       TextWrapping="{TemplateBinding TextWrapping}"/>
                     </ScrollViewer>
                 </Border>
             </ControlTemplate>
@@ -308,24 +317,17 @@
                             BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="6">
                         <Grid>
+                            <!-- 点击区域铺满整个下拉框 -->
                             <ToggleButton x:Name="ToggleButton"
                                           Focusable="False"
+                                          HorizontalAlignment="Stretch"
+                                          VerticalAlignment="Stretch"
                                           IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
                                           Background="Transparent"
                                           BorderThickness="0">
                                 <ToggleButton.Template>
                                     <ControlTemplate>
-                                        <Grid Background="Transparent">
-                                            <Path x:Name="arrow"
-                                                  Data="M0,0 L5,5 10,0"
-                                                  Fill="{StaticResource TextMutedBrush}"
-                                                  HorizontalAlignment="Right"
-                                                  Margin="0,0,10,0"
-                                                  VerticalAlignment="Center"
-                                                  StrokeThickness="1.5"
-                                                  Stroke="{StaticResource TextMutedBrush}"
-                                                  StrokeLineCap="Round"/>
-                                        </Grid>
+                                        <Border Background="Transparent"/>
                                     </ControlTemplate>
                                 </ToggleButton.Template>
                             </ToggleButton>
@@ -333,9 +335,20 @@
                                               IsHitTestVisible="False"
                                               Content="{TemplateBinding SelectionBoxItem}"
                                               ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                              Margin="10,8,28,8"
+                                              Margin="12,0,36,0"
                                               VerticalAlignment="Center"
                                               HorizontalAlignment="Left"/>
+                            <!-- 下箭头固定在右侧，与边框留出间距 -->
+                            <Path x:Name="arrow"
+                                  Data="M0,0 L5,5 10,0"
+                                  Fill="{StaticResource TextMutedBrush}"
+                                  HorizontalAlignment="Right"
+                                  VerticalAlignment="Center"
+                                  Margin="0,0,12,0"
+                                  IsHitTestVisible="False"
+                                  StrokeThickness="1.5"
+                                  Stroke="{StaticResource TextMutedBrush}"
+                                  StrokeLineCap="Round"/>
                             <TextBox x:Name="PART_EditableTextBox"
                                      CaretBrush="{StaticResource TextPrimaryBrush}"
                                      Background="Transparent"
@@ -343,7 +356,7 @@
                                      BorderThickness="0"
                                      Focusable="True"
                                      IsReadOnly="True"
-                                     Margin="10,8,28,8"
+                                     Margin="12,0,36,0"
                                      VerticalAlignment="Center"
                                      HorizontalAlignment="Stretch"
                                      IsVisible="False"/>

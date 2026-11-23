@@ -10,7 +10,11 @@ using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
-using Avalonia.Threading;
+using ReactiveUI;
+using ReactiveUI.Binding;
+using ReactiveUI.Primitives;
+using ReactiveUI.Primitives.Concurrency;
+using ReactiveUI.Primitives.Signals;
 using UpperApp.Communication;
 using UpperApp.Core;
 using UpperApp.Processing;
@@ -29,11 +33,17 @@ namespace UpperApp.ViewModels
         private readonly IConfigStorage _configStorage;
         private MapTracker _mapTracker;
         private TrafficChart _trafficChart;
-        private readonly DispatcherTimer _sendTimer;
-        private readonly DispatcherTimer _memTimer;
-        private readonly DispatcherTimer _rockerSendTimer;
-        private readonly DispatcherTimer _monitorTimer;
-        private volatile bool _rockerDirty;
+        private readonly ObservableAsPropertyHelper<bool> _isSerialConfigEnabled;
+        private readonly ObservableAsPropertyHelper<bool> _isNetConfigEnabled;
+
+        private readonly ScheduledSubject<StatusEvent> _statusEvents = new(App.UiSequencer);
+        private readonly ScheduledSubject<ProcessedMessage> _receivedMessages = new(App.UiSequencer);
+        private readonly IDisposable _statusSub;
+        private readonly IDisposable _receivedSub;
+        private readonly IDisposable _rockerSub;
+        private readonly IDisposable _memSub;
+        private readonly IDisposable _monitorSub;
+        private IDisposable _autoSendSub;
         private int _cnt, _counter;
         private int _rxCount, _txCount;
         private int _lastRxCount, _lastTxCount;
@@ -74,8 +84,8 @@ namespace UpperApp.ViewModels
         public string SerialButtonText { get => _serialButtonText; set => SetField(ref _serialButtonText, value); }
 
         private bool _isSerialOpen;
-        public bool IsSerialOpen { get => _isSerialOpen; set { if (SetField(ref _isSerialOpen, value)) OnPropertyChanged(nameof(IsSerialConfigEnabled)); } }
-        public bool IsSerialConfigEnabled => !_isSerialOpen;
+        public bool IsSerialOpen { get => _isSerialOpen; set => SetField(ref _isSerialOpen, value); }
+        public bool IsSerialConfigEnabled => _isSerialConfigEnabled.Value;
 
         // Network
         private ObservableCollection<string> _localIPs = [];
@@ -93,8 +103,8 @@ namespace UpperApp.ViewModels
             get => _selectedNetType;
             set
             {
-                if (SetField(ref _selectedNetType, value) && _isNetChannel)
-                    _deviceService.ActiveChannel = value == "TCP" ? ChannelType.TCP : ChannelType.UDP;
+                if (SetField(ref _selectedNetType, value) && IsNetChannel)
+                    SelectedChannelKind = value == "TCP" ? ChannelType.TCP : ChannelType.UDP;
             }
         }
 
@@ -104,8 +114,8 @@ namespace UpperApp.ViewModels
         public string ListenButtonText { get => _listenButtonText; set => SetField(ref _listenButtonText, value); }
 
         private bool _isNetListening;
-        public bool IsNetListening { get => _isNetListening; set { if (SetField(ref _isNetListening, value)) OnPropertyChanged(nameof(IsNetConfigEnabled)); } }
-        public bool IsNetConfigEnabled => !_isNetListening;
+        public bool IsNetListening { get => _isNetListening; set => SetField(ref _isNetListening, value); }
+        public bool IsNetConfigEnabled => _isNetConfigEnabled.Value;
 
         private ObservableCollection<string> _peerList = [];
         public ObservableCollection<string> PeerList { get => _peerList; set => SetField(ref _peerList, value); }
@@ -147,56 +157,30 @@ namespace UpperApp.ViewModels
         private Avalonia.Media.IBrush _bthStatusColor = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromRgb(0x66, 0x66, 0x66));
         public Avalonia.Media.IBrush BthStatusColor { get => _bthStatusColor; set => SetField(ref _bthStatusColor, value); }
 
-        // Channel
-        private bool _isSerialChannel = true;
+        // Channel：Serial / NET(TCP|UDP) / BT 三者互斥，统一由 SelectedChannelKind 单一数据源驱动
+        private ChannelType _selectedChannelKind = ChannelType.Serial;
+        public ChannelType SelectedChannelKind
+        {
+            get => _selectedChannelKind;
+            set => SetField(ref _selectedChannelKind, value);
+        }
+
         public bool IsSerialChannel
         {
-            get => _isSerialChannel;
-            set
-            {
-                if (value && !_isSerialChannel)
-                {
-                    _isSerialChannel = true; _isNetChannel = false; _isBtChannel = false;
-                    _deviceService.ActiveChannel = ChannelType.Serial;
-                    OnPropertyChanged(nameof(IsSerialChannel));
-                    OnPropertyChanged(nameof(IsNetChannel));
-                    OnPropertyChanged(nameof(IsBtChannel));
-                }
-            }
+            get => _selectedChannelKind == ChannelType.Serial;
+            set { if (value) SelectedChannelKind = ChannelType.Serial; }
         }
 
-        private bool _isNetChannel;
         public bool IsNetChannel
         {
-            get => _isNetChannel;
-            set
-            {
-                if (value && !_isNetChannel)
-                {
-                    _isSerialChannel = false; _isNetChannel = true; _isBtChannel = false;
-                    _deviceService.ActiveChannel = SelectedNetType == "TCP" ? ChannelType.TCP : ChannelType.UDP;
-                    OnPropertyChanged(nameof(IsSerialChannel));
-                    OnPropertyChanged(nameof(IsNetChannel));
-                    OnPropertyChanged(nameof(IsBtChannel));
-                }
-            }
+            get => _selectedChannelKind is ChannelType.TCP or ChannelType.UDP;
+            set { if (value) SelectedChannelKind = SelectedNetType == "TCP" ? ChannelType.TCP : ChannelType.UDP; }
         }
 
-        private bool _isBtChannel;
         public bool IsBtChannel
         {
-            get => _isBtChannel;
-            set
-            {
-                if (value && !_isBtChannel)
-                {
-                    _isSerialChannel = false; _isNetChannel = false; _isBtChannel = true;
-                    _deviceService.ActiveChannel = ChannelType.Bluetooth;
-                    OnPropertyChanged(nameof(IsSerialChannel));
-                    OnPropertyChanged(nameof(IsNetChannel));
-                    OnPropertyChanged(nameof(IsBtChannel));
-                }
-            }
+            get => _selectedChannelKind == ChannelType.Bluetooth;
+            set { if (value) SelectedChannelKind = ChannelType.Bluetooth; }
         }
 
         // Display mode
@@ -225,27 +209,10 @@ namespace UpperApp.ViewModels
 
         // Motion
         private int _fbValue = 50;
-        public int FbValue { get => _fbValue; set { if (SetField(ref _fbValue, value)) OnSliderChanged(); } }
+        public int FbValue { get => _fbValue; set => SetField(ref _fbValue, value); }
 
         private int _rlValue = 50;
-        public int RlValue { get => _rlValue; set { if (SetField(ref _rlValue, value)) OnSliderChanged(); } }
-
-        /// <summary>
-        /// 同时更新速度和方向，只触发一次 OnSliderChanged 节流标记，
-        /// 避免摇杆 MouseMove 同时设两个属性导致两次属性变更通知。
-        /// </summary>
-        public void UpdateMotionValues(int speed, int direction)
-        {
-            bool changed = false;
-            if (_fbValue != speed) { _fbValue = speed; changed = true; }
-            if (_rlValue != direction) { _rlValue = direction; changed = true; }
-            if (changed)
-            {
-                OnPropertyChanged(nameof(FbValue));
-                OnPropertyChanged(nameof(RlValue));
-                OnSliderChanged();
-            }
-        }
+        public int RlValue { get => _rlValue; set => SetField(ref _rlValue, value); }
 
         private double _stepSize = 25;
         public double StepSize { get => _stepSize; set => SetField(ref _stepSize, value); }
@@ -318,29 +285,47 @@ namespace UpperApp.ViewModels
         {
             _configStorage = AppServices.Config;
             _deviceService = AppServices.Device;
-            _deviceService.StatusChanged += UnifiedStatusChanged;
-            _deviceService.ActiveChannel = ChannelType.Serial;
+            _deviceService.StatusChanged += OnDeviceStatusChanged;
 
             _msgProcessor = new MessageProcessor(_logger, () => SaveDataEnabled);
             _receivePipeline = new DataPipeline(DispatchReceivedData);
             _receivePipeline.Start();
 
-            _sendTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-            _sendTimer.Tick += SendTimer_Tick;
+            // 派生属性：源属性变化后自动通知，无需手写 OnPropertyChanged
+            this.WhenAnyValue(x => x.IsSerialOpen)
+                .Select(open => !open)
+                .ToProperty(this, x => x.IsSerialConfigEnabled, out _isSerialConfigEnabled);
+            this.WhenAnyValue(x => x.IsNetListening)
+                .Select(listening => !listening)
+                .ToProperty(this, x => x.IsNetConfigEnabled, out _isNetConfigEnabled);
 
-            _memTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-            _memTimer.Tick += MemTimer_Tick;
-            _memTimer.Start();
+            // 通道选择：SelectedChannelKind 为单一数据源，同步有源通道并通知三个 RadioButton 的派生状态
+            this.WhenAnyValue(x => x.SelectedChannelKind)
+                .SubscribeSafe(kind =>
+                {
+                    _deviceService.ActiveChannel = kind;
+                    OnPropertyChanged(nameof(IsSerialChannel));
+                    OnPropertyChanged(nameof(IsNetChannel));
+                    OnPropertyChanged(nameof(IsBtChannel));
+                });
 
-            // 摇杆节流定时器：50ms 间隔批量发送，避免 MouseMove 高频触发同步 I/O 阻塞 UI 线程
-            _rockerSendTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
-            _rockerSendTimer.Tick += RockerSendTimer_Tick;
-            _rockerSendTimer.Start();
+            _statusSub = _statusEvents.SubscribeSafe(HandleStatusEvent);
+            _receivedSub = _receivedMessages.SubscribeSafe(ApplyReceivedMessage);
 
-            // 通信监控定时器：每秒采样 Rx/Tx 增量推入流量曲线 + 轮询通道状态
-            _monitorTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-            _monitorTimer.Tick += MonitorTimer_Tick;
-            _monitorTimer.Start();
+            // 摇杆节流：直接观察速度/方向属性，50ms 采样最新值批量发送，
+            // 避免 MouseMove 高频同步 I/O 阻塞 UI 线程；Skip(1) 跳过订阅时的初始值
+            _rockerSub = this.WhenAnyValue(x => x.FbValue, x => x.RlValue)
+                .Skip(1)
+                .Sample(TimeSpan.FromMilliseconds(50), App.UiSequencer)
+                .SubscribeSafe(_ => SendRockerState());
+
+            // 内存占用：每 2 秒刷新
+            _memSub = Signal.Timer(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2), App.UiSequencer)
+                .SubscribeSafe(_ => UpdateMemoryUsage());
+
+            // 通信监控：每秒采样 Rx/Tx 增量推入流量曲线 + 轮询通道状态
+            _monitorSub = Signal.Timer(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1), App.UiSequencer)
+                .SubscribeSafe(_ => UpdateTrafficAndChannels());
 
             ToggleSerialCommand = new RelayCommand(ToggleSerial);
             ToggleListenCommand = new RelayCommand(ToggleListen);
@@ -386,7 +371,7 @@ namespace UpperApp.ViewModels
             RefreshSerialPorts();
             RefreshLocalIPs();
 
-            _ = LoadSettingsAsync();
+            LoadSettings();
         }
 
         public void SetMapTracker(MapTracker tracker)
@@ -447,7 +432,7 @@ namespace UpperApp.ViewModels
             }
         }
 
-        private void UnifiedStatusChanged(StatusEvent evt)
+        private void OnDeviceStatusChanged(StatusEvent evt)
         {
             // 接收消息：I/O 线程直接入队 Channel，无需切到 UI 线程（Channel<T> 线程安全）
             if (evt is MessageReceivedEvent recv)
@@ -456,91 +441,95 @@ namespace UpperApp.ViewModels
                 return;
             }
 
-            Dispatcher.UIThread.Post(() =>
+            // 其余状态事件走 Subject，由 ObserveOn 统一切到 UI 线程处理
+            _statusEvents.OnNext(evt);
+        }
+
+        private void HandleStatusEvent(StatusEvent evt)
+        {
+            switch (evt)
             {
-                switch (evt)
-                {
-                    case MessageSentEvent:
-                        // 发送回显已在 SendAndEcho 中直接处理，此处无需操作
-                        break;
-                    case ExceptionOccurredEvent e:
-                        _logger.WriteLine($"[{Utils.GetTime()}] ExceptionStop [{e.Channel}]: {e.Message}");
-                        string title = e.Channel switch
-                        {
-                            ChannelType.Serial => "串口错误",
-                            ChannelType.Bluetooth => "蓝牙错误",
-                            ChannelType.TCP or ChannelType.UDP => string.IsNullOrEmpty(e.RemoteIP) ? "网络错误" : "远端关闭",
-                            _ => "错误"
-                        };
-                        AppendRecvText($"[{Utils.GetTime()}] [ERROR] {title}: {e.Message}\r\n");
-                        StatusText = $"{title}: {e.Message}";
-                        break;
-                    case MonitorStartedEvent e:
-                        UpdateMonitorUI(e.Channel, isStart: true, e.Message);
-                        break;
-                    case MonitorStoppedEvent e:
-                        UpdateMonitorUI(e.Channel, isStart: false, e.Message);
-                        break;
-                    case PeerConnectedEvent e:
-                        if (e.Channel == ChannelType.TCP || e.Channel == ChannelType.UDP)
-                        {
-                            StatusText = "连接成功！";
-                            RefreshPeerList(e.Channel, e.Peer);
-                        }
-                        else if (e.Channel == ChannelType.Bluetooth)
-                        {
-                            if (!string.IsNullOrEmpty(e.Message))
-                                AppendRecvText(e.Message);
-                            RefreshPeerList(ChannelType.Bluetooth, null);
-                        }
-                        break;
-                    case PeerDisconnectedEvent e:
-                        if (e.Channel == ChannelType.TCP || e.Channel == ChannelType.UDP)
-                        {
-                            RefreshPeerList(e.Channel, "");
-                            StatusText = e.Reason;
-                        }
-                        else if (e.Channel == ChannelType.Bluetooth)
-                        {
-                            StatusText = "连接断开!";
-                            BthConnectButtonText = "连接";
-                            RefreshPeerList(ChannelType.Bluetooth, null);
-                        }
-                        break;
-                    case ManualStoppedEvent e:
-                        if (e.Channel == ChannelType.TCP || e.Channel == ChannelType.UDP)
-                            SelectedPeer = "";
-                        break;
-                }
-            });
+                case MessageSentEvent:
+                    // 发送回显已在 SendAndEcho 中直接处理，此处无需操作
+                    break;
+                case ExceptionOccurredEvent e:
+                    _logger.WriteLine($"[{Utils.GetTime()}] ExceptionStop [{e.Channel}]: {e.Message}");
+                    string title = e.Channel switch
+                    {
+                        ChannelType.Serial => "串口错误",
+                        ChannelType.Bluetooth => "蓝牙错误",
+                        ChannelType.TCP or ChannelType.UDP => string.IsNullOrEmpty(e.RemoteIP) ? "网络错误" : "远端关闭",
+                        _ => "错误"
+                    };
+                    AppendRecvText($"[{Utils.GetTime()}] [ERROR] {title}: {e.Message}\r\n");
+                    StatusText = $"{title}: {e.Message}";
+                    break;
+                case MonitorStartedEvent e:
+                    UpdateMonitorUI(e.Channel, isStart: true, e.Message);
+                    break;
+                case MonitorStoppedEvent e:
+                    UpdateMonitorUI(e.Channel, isStart: false, e.Message);
+                    break;
+                case PeerConnectedEvent e:
+                    if (e.Channel == ChannelType.TCP || e.Channel == ChannelType.UDP)
+                    {
+                        StatusText = "连接成功！";
+                        RefreshPeerList(e.Channel, e.Peer);
+                    }
+                    else if (e.Channel == ChannelType.Bluetooth)
+                    {
+                        if (!string.IsNullOrEmpty(e.Message))
+                            AppendRecvText(e.Message);
+                        RefreshPeerList(ChannelType.Bluetooth, null);
+                    }
+                    break;
+                case PeerDisconnectedEvent e:
+                    if (e.Channel == ChannelType.TCP || e.Channel == ChannelType.UDP)
+                    {
+                        RefreshPeerList(e.Channel, "");
+                        StatusText = e.Reason;
+                    }
+                    else if (e.Channel == ChannelType.Bluetooth)
+                    {
+                        StatusText = "连接断开!";
+                        BthConnectButtonText = "连接";
+                        RefreshPeerList(ChannelType.Bluetooth, null);
+                    }
+                    break;
+                case ManualStoppedEvent e:
+                    if (e.Channel == ChannelType.TCP || e.Channel == ChannelType.UDP)
+                        SelectedPeer = "";
+                    break;
+            }
         }
 
         private void DispatchReceivedData(MessageReceivedEvent evt)
         {
             var processed = _msgProcessor.ProcessReceivedMessage(evt);
-            if (processed == null) return;
+            if (processed != null)
+                _receivedMessages.OnNext(processed);
+        }
 
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (!string.IsNullOrEmpty(processed.NewPeerHint))
-                    AppendRecvText(processed.NewPeerHint);
+        private void ApplyReceivedMessage(ProcessedMessage processed)
+        {
+            if (!string.IsNullOrEmpty(processed.NewPeerHint))
+                AppendRecvText(processed.NewPeerHint);
 
-                if (!string.IsNullOrEmpty(processed.Prefix))
-                    AppendRecvText(processed.Prefix);
+            if (!string.IsNullOrEmpty(processed.Prefix))
+                AppendRecvText(processed.Prefix);
 
-                string displayContent = IsHexMode
-                    ? Utils.StringToHexString(processed.RawContent)
-                    : processed.FormattedContent;
-                AppendRecvText(displayContent);
+            string displayContent = IsHexMode
+                ? Utils.StringToHexString(processed.RawContent)
+                : processed.FormattedContent;
+            AppendRecvText(displayContent);
 
-                _rxCount += processed.ByteCount;
-                RxCount = _rxCount.ToString();
+            _rxCount += processed.ByteCount;
+            RxCount = _rxCount.ToString();
 
-                // 日志已由 MessageProcessor.ProcessReceivedMessage 统一写入，此处不再重复
+            // 日志已由 MessageProcessor.ProcessReceivedMessage 统一写入，此处不再重复
 
-                if (AngleDisplayEnabled && processed.HasAttitudeData)
-                    SetAngDisp(processed.AttitudeRaw);
-            });
+            if (AngleDisplayEnabled && processed.HasAttitudeData)
+                SetAngDisp(processed.AttitudeRaw);
         }
 
         private void UpdateMonitorUI(ChannelType channel, bool isStart, string message)
@@ -890,33 +879,34 @@ namespace UpperApp.ViewModels
                 AutoSendEnabled = true;
                 _counter = interval / 100;
                 _cnt = 0;
-                _sendTimer.Start();
+                _autoSendSub = Signal
+                    .Timer(TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(100), App.UiSequencer)
+                    .SubscribeSafe(_ =>
+                    {
+                        if (AutoSendEnabled && ++_cnt >= _counter)
+                        {
+                            StrSend(SendText);
+                            _cnt = 0;
+                        }
+                    });
                 AutoSendButtonText = "停止";
             }
             else
             {
                 AutoSendEnabled = false;
-                _sendTimer.Stop();
+                _autoSendSub?.Dispose();
+                _autoSendSub = null;
                 AutoSendButtonText = "开始";
             }
         }
 
-        private void SendTimer_Tick(object sender, EventArgs e)
-        {
-            if (AutoSendEnabled && ++_cnt >= _counter)
-            {
-                StrSend(SendText);
-                _cnt = 0;
-            }
-        }
-
-        private void MemTimer_Tick(object sender, EventArgs e)
+        private void UpdateMemoryUsage()
         {
             double usemem = Process.GetCurrentProcess().PrivateMemorySize64 / 1024.0 / 1024.0;
             MemUsage = $"{usemem:F1}M";
         }
 
-        private void MonitorTimer_Tick(object sender, EventArgs e)
+        private void UpdateTrafficAndChannels()
         {
             // 流量采样：计算与上一秒的 Rx/Tx 字节增量
             int rxDelta = _rxCount - _lastRxCount;
@@ -951,16 +941,8 @@ namespace UpperApp.ViewModels
             ChannelStates = string.Join(';', codes);
         }
 
-        private void OnSliderChanged()
+        private void SendRockerState()
         {
-            // 节流：只标记需要发送，由 _rockerSendTimer 定时批量发送最新值
-            _rockerDirty = true;
-        }
-
-        private void RockerSendTimer_Tick(object sender, EventArgs e)
-        {
-            if (!_rockerDirty) return;
-            _rockerDirty = false;
             var protocol = ProtocolFormatter.FullControl(FbValue, RlValue);
             SendAndEcho(protocol, protocol);
         }
@@ -1029,10 +1011,11 @@ namespace UpperApp.ViewModels
                 SelectedHostIP = LocalIPs[0];
         }
 
-        private async Task LoadSettingsAsync()
+        private void LoadSettings()
         {
-            var settings = await _configStorage.LoadAsync();
-            Dispatcher.UIThread.Post(() => ApplySettings(settings));
+            Signal.FromAsync(() => _configStorage.LoadAsync())
+                .ObserveOn(App.UiSequencer)
+                .SubscribeSafe(ApplySettings);
         }
 
         private void ApplySettings(AppSettings settings)
@@ -1107,17 +1090,17 @@ namespace UpperApp.ViewModels
 
         public void OnClosing()
         {
-            // 停止定时器并注销事件，避免关闭后回调访问已释放资源
-            _sendTimer?.Stop();
-            _sendTimer.Tick -= SendTimer_Tick;
-            _memTimer?.Stop();
-            _memTimer.Tick -= MemTimer_Tick;
-            _rockerSendTimer?.Stop();
-            _rockerSendTimer.Tick -= RockerSendTimer_Tick;
-            _monitorTimer?.Stop();
-            _monitorTimer.Tick -= MonitorTimer_Tick;
+            // 释放订阅并结束 Subject，避免关闭后回调访问已释放资源
+            _statusSub.Dispose();
+            _receivedSub.Dispose();
+            _rockerSub.Dispose();
+            _memSub.Dispose();
+            _monitorSub.Dispose();
+            _autoSendSub?.Dispose();
+            _statusEvents.OnCompleted();
+            _receivedMessages.OnCompleted();
 
-            _deviceService.StatusChanged -= UnifiedStatusChanged;
+            _deviceService.StatusChanged -= OnDeviceStatusChanged;
 
             _configStorage.SaveSync(CollectCurrentSettings());
             _receivePipeline.Dispose();

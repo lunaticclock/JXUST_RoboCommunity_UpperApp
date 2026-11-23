@@ -1,16 +1,14 @@
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using ReactiveUI;
 
 namespace UpperApp.ViewModels
 {
-    internal class ViewModelBase : INotifyPropertyChanged
+    internal class ViewModelBase : ReactiveObject
     {
-        public event PropertyChangedEventHandler PropertyChanged;
-
         protected void OnPropertyChanged([CallerMemberName] string name = null)
         {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+            this.RaisePropertyChanged(name);
         }
 
         protected bool SetField<T>(ref T field, T value, [CallerMemberName] string name = null)

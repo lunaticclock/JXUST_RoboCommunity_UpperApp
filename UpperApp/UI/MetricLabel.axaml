@@ -1,11 +1,12 @@
 <UserControl x:Class="UpperApp.UI.MetricLabel"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:UpperApp.UI">
     <StackPanel Orientation="Horizontal">
-        <TextBlock Text="{Binding Label, RelativeSource={RelativeSource AncestorType=UserControl}}"
+        <TextBlock Text="{Binding Label, RelativeSource={RelativeSource AncestorType=ui:MetricLabel}}"
                    Foreground="{DynamicResource TextMutedBrush}" FontSize="11"
                    VerticalAlignment="Center" Margin="0,0,4,0"/>
-        <TextBlock Text="{Binding Value, RelativeSource={RelativeSource AncestorType=UserControl}}"
+        <TextBlock Text="{Binding Value, RelativeSource={RelativeSource AncestorType=ui:MetricLabel}}"
                    Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11"
                    FontFamily="{DynamicResource FontMono}" VerticalAlignment="Center"/>
     </StackPanel>

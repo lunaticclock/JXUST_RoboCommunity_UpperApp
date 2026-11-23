@@ -1,8 +1,8 @@
 using System;
 using System.Globalization;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Media;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Media;
 
 namespace UpperApp.UI
 {
@@ -19,27 +19,20 @@ namespace UpperApp.UI
     /// </summary>
     public class DistanceGauge : AnimatedGaugeBase
     {
-        static DistanceGauge()
-        {
-            DefaultStyleKeyProperty.OverrideMetadata(typeof(DistanceGauge),
-                new FrameworkPropertyMetadata(typeof(DistanceGauge)));
-        }
-
-        public static readonly DependencyProperty DistanceProperty =
-            DependencyProperty.Register(nameof(Distance), typeof(string), typeof(DistanceGauge),
-                new FrameworkPropertyMetadata("0", OnDistanceChanged));
+        public static readonly StyledProperty<string> DistanceProperty =
+            AvaloniaProperty.Register<DistanceGauge, string>(nameof(Distance), "0");
 
         /// <summary>距离字符串（米）</summary>
         public string Distance
         {
-            get => (string)GetValue(DistanceProperty);
+            get => GetValue(DistanceProperty);
             set => SetValue(DistanceProperty, value);
         }
 
-        private static void OnDistanceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        static DistanceGauge()
         {
-            if (d is DistanceGauge g)
-                g.SetTargetValue(ParseDouble((string)e.NewValue));
+            DistanceProperty.Changed.AddClassHandler<DistanceGauge>((g, e) =>
+                g.SetTargetValue(ParseDouble((string)e.NewValue!)));
         }
 
         // 距离用较慢的刚度，避免数字跳动太快（k=40, c=13 略过阻尼）
@@ -55,7 +48,7 @@ namespace UpperApp.UI
         private readonly TextCache _valText = new(FontFace);
         private readonly TextCache _unitText = new(FontFace);
 
-        protected override void OnRender(DrawingContext dc)
+        public override void Render(DrawingContext dc)
         {
             double dist = CurrentValue;
             if (dist < 0) dist = 0;
@@ -72,8 +65,8 @@ namespace UpperApp.UI
                 for (int i = 0; i < 6; i++) _tickLabels[i] = new TextCache(FontFace);
             }
 
-            double w = ActualWidth;
-            double h = ActualHeight;
+            double w = Bounds.Width;
+            double h = Bounds.Height;
             double cx = w / 2;
             double cy = h * 0.75; // 圆心偏下，给半圆弧留空间
             double r = Math.Min(w / 2 - 4, h - 8);
@@ -143,10 +136,17 @@ namespace UpperApp.UI
             var end = new Point(cx + Math.Cos(endRad) * r, cy + Math.Sin(endRad) * r);
             var size = new Size(r, r);
             bool isLargeArc = Math.Abs(sweepAngleDeg) > 180;
-            var sweep = sweepAngleDeg > 0 ? SweepDirection.Clockwise : SweepDirection.Counterclockwise;
+            var sweep = sweepAngleDeg > 0 ? SweepDirection.Clockwise : SweepDirection.CounterClockwise;
             var geo = new PathGeometry();
             var fig = new PathFigure { StartPoint = start };
-            fig.Segments.Add(new ArcSegment(end, size, 0, isLargeArc, sweep, true));
+            fig.Segments.Add(new ArcSegment
+            {
+                Point = end,
+                Size = size,
+                RotationAngle = 0,
+                IsLargeArc = isLargeArc,
+                SweepDirection = sweep
+            });
             geo.Figures.Add(fig);
             dc.DrawGeometry(null, new Pen(brush, thickness), geo);
         }
@@ -170,6 +170,6 @@ namespace UpperApp.UI
         private static readonly Brush TextMuted = new SolidColorBrush(Color.FromRgb(0x6E, 0x6E, 0x78));
         private static readonly Pen TickPen = new(new SolidColorBrush(Color.FromRgb(0x6E, 0x6E, 0x78)), 1);
         private static readonly Pen PointerPen = new(Brushes.OrangeRed, 2);
-        private static readonly Typeface FontFace = new("Microsoft YaHei UI, Segoe UI, sans-serif");
+        private static readonly Typeface FontFace = new(new FontFamily("Microsoft YaHei UI, Segoe UI, sans-serif"));
     }
 }

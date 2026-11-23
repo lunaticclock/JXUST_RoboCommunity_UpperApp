@@ -2,13 +2,15 @@ using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO.Ports;
+using System.Linq;
 using System.Runtime.Versioning;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Input;
-using System.Windows.Threading;
-using UpperApp.Commands;
+using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using UpperApp.Communication;
 using UpperApp.Core;
 using UpperApp.Processing;
@@ -142,8 +144,8 @@ namespace UpperApp.ViewModels
         private string _bthRadioStatus = "蓝牙未启动";
         public string BthRadioStatus { get => _bthRadioStatus; set => SetField(ref _bthRadioStatus, value); }
 
-        private System.Windows.Media.Brush _bthStatusColor = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x66, 0x66, 0x66));
-        public System.Windows.Media.Brush BthStatusColor { get => _bthStatusColor; set => SetField(ref _bthStatusColor, value); }
+        private Avalonia.Media.IBrush _bthStatusColor = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromRgb(0x66, 0x66, 0x66));
+        public Avalonia.Media.IBrush BthStatusColor { get => _bthStatusColor; set => SetField(ref _bthStatusColor, value); }
 
         // Channel
         private bool _isSerialChannel = true;
@@ -314,8 +316,8 @@ namespace UpperApp.ViewModels
         #endregion
         public MainViewModel()
         {
-            _configStorage = AppServices.GetService<IConfigStorage>();
-            _deviceService = AppServices.GetService<DeviceService>();
+            _configStorage = AppServices.Config;
+            _deviceService = AppServices.Device;
             _deviceService.StatusChanged += UnifiedStatusChanged;
             _deviceService.ActiveChannel = ChannelType.Serial;
 
@@ -353,13 +355,13 @@ namespace UpperApp.ViewModels
             ClearSendCommand = new RelayCommand(_ => { _txCount = 0; TxCount = "0"; SendText = ""; StatusText = "发送区已清空"; });
             StopCommand = new RelayCommand(_ => {
                 FbValue = 50;
-                var cmd = new MoveCommand(MoveCommand.MoveType.ForwardBackward, 50);
-                SendAndEcho(cmd, cmd.Encode());
+                var protocol = ProtocolFormatter.ForwardBackward(50);
+                SendAndEcho(protocol, protocol);
             });
             ResetDirectionCommand = new RelayCommand(_ => {
                 RlValue = 50;
-                var cmd = new MoveCommand(MoveCommand.MoveType.RightLeft, 50, 50);
-                SendAndEcho(cmd, cmd.Encode());
+                var protocol = ProtocolFormatter.RightLeft(50);
+                SendAndEcho(protocol, protocol);
             });
             ToggleRockerCommand = new RelayCommand(_ => {
                 _rockerActive = !_rockerActive;
@@ -368,12 +370,12 @@ namespace UpperApp.ViewModels
                 {
                     FbValue = 50;
                     RlValue = 50;
-                    var cmd = new MoveCommand(MoveCommand.MoveType.FullControl, FbValue, RlValue);
-                    SendAndEcho(cmd, cmd.Encode());
+                    var protocol = ProtocolFormatter.FullControl(FbValue, RlValue);
+                    SendAndEcho(protocol, protocol);
                 }
             });
             ClearAttitudeCommand = new RelayCommand(_ => { Yaw = Roll = Pitch = Distance = "0"; StatusText = "数据清除成功"; });
-            OpenMapCommand = new RelayCommand(OpenMap);
+            OpenMapCommand = new AsyncRelayCommand(OpenMap);
             ClearMapCommand = new RelayCommand(_ => { _mapTracker?.Clear(); MapStartPoint = MapEndPoint = "0,0"; });
 
             for (int i = 0; i < 8; i++)
@@ -454,7 +456,7 @@ namespace UpperApp.ViewModels
                 return;
             }
 
-            Application.Current.Dispatcher.BeginInvoke(() =>
+            Dispatcher.UIThread.Post(() =>
             {
                 switch (evt)
                 {
@@ -518,7 +520,7 @@ namespace UpperApp.ViewModels
             var processed = _msgProcessor.ProcessReceivedMessage(evt);
             if (processed == null) return;
 
-            Application.Current.Dispatcher.BeginInvoke(() =>
+            Dispatcher.UIThread.Post(() =>
             {
                 if (!string.IsNullOrEmpty(processed.NewPeerHint))
                     AppendRecvText(processed.NewPeerHint);
@@ -568,12 +570,12 @@ namespace UpperApp.ViewModels
                     if (isStart)
                     {
                         BthRadioStatus = $"蓝牙服务端运行中 · {_deviceService.BluetoothRadioAddress}";
-                        BthStatusColor = System.Windows.Media.Brushes.ForestGreen;
+                        BthStatusColor = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromRgb(0x22, 0x8B, 0x22));
                     }
                     else
                     {
                         BthRadioStatus = "蓝牙已停止";
-                        BthStatusColor = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x66, 0x66, 0x66));
+                        BthStatusColor = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromRgb(0x66, 0x66, 0x66));
                     }
                     break;
             }
@@ -642,17 +644,16 @@ namespace UpperApp.ViewModels
             }
 
             // 字符模式：走原命令链路
-            var command = new RawSendCommand(buf, _deviceService.ActiveChannel);
-            SendAndEcho(command, buf);
+            SendAndEcho(buf, buf, _deviceService.ActiveChannel);
         }
 
         /// <summary>
-        /// 字符模式发送+回显：执行命令发送，成功后直接在 VM 内回显 + 计数。
+        /// 字符模式发送+回显：发送协议串，成功后直接在 VM 内回显 + 计数。
         /// 回显内容就是用户输入的字符串（不再二次转 hex）。
         /// </summary>
-        private void SendAndEcho(IDeviceCommand command, string displayContent)
+        private void SendAndEcho(string protocol, string displayContent, ChannelType? channelOverride = null)
         {
-            if (!_deviceService.TryExecuteCommand(command))
+            if (!_deviceService.TrySendString(protocol, channelOverride))
             {
                 StatusText = "发送失败：通道未连接或未找到";
                 return;
@@ -789,7 +790,7 @@ namespace UpperApp.ViewModels
                 _deviceService.StartChannel(ChannelType.Bluetooth, new BluetoothParams { IsServerMode = true });
                 BthListenButtonText = "关闭监听";
                 BthRadioStatus = $"蓝牙服务端运行中 · {_deviceService.BluetoothRadioAddress}";
-                BthStatusColor = System.Windows.Media.Brushes.ForestGreen;
+                BthStatusColor = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromRgb(0x22, 0x8B, 0x22));
                 AppendRecvText($"[蓝牙] Radio address: {_deviceService.BluetoothRadioAddress}\r\n");
                 AppendRecvText($"[蓝牙] Mode: {_deviceService.BluetoothRadioMode}\r\n");
                 AppendRecvText("[蓝牙] Service started!\r\n");
@@ -799,7 +800,7 @@ namespace UpperApp.ViewModels
                 _deviceService.StopChannel(ChannelType.Bluetooth);
                 BthListenButtonText = "启动监听";
                 BthRadioStatus = "蓝牙已停止";
-                BthStatusColor = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x66, 0x66, 0x66));
+                BthStatusColor = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromRgb(0x66, 0x66, 0x66));
             }
         }
 
@@ -812,8 +813,7 @@ namespace UpperApp.ViewModels
                 return;
             }
             _deviceService.SetBluetoothTarget(SelectedBthSlave);
-            var command = new RawSendCommand(BthServerSendText, ChannelType.Bluetooth);
-            SendAndEcho(command, BthServerSendText);
+            SendAndEcho(BthServerSendText, BthServerSendText, ChannelType.Bluetooth);
         }
 
         private void BthClientSend(object _)
@@ -825,8 +825,7 @@ namespace UpperApp.ViewModels
                 return;
             }
             _deviceService.SetBluetoothTarget(null);
-            var command = new RawSendCommand(BthClientSendText, ChannelType.Bluetooth);
-            SendAndEcho(command, BthClientSendText);
+            SendAndEcho(BthClientSendText, BthClientSendText, ChannelType.Bluetooth);
         }
 
         private async Task BthScan()
@@ -962,8 +961,8 @@ namespace UpperApp.ViewModels
         {
             if (!_rockerDirty) return;
             _rockerDirty = false;
-            var command = new MoveCommand(MoveCommand.MoveType.FullControl, FbValue, RlValue);
-            SendAndEcho(command, command.Encode());
+            var protocol = ProtocolFormatter.FullControl(FbValue, RlValue);
+            SendAndEcho(protocol, protocol);
         }
 
         private void OnCalibratedDistanceChanged()
@@ -972,25 +971,37 @@ namespace UpperApp.ViewModels
                 _mapTracker?.SetCalibratedDistance(dist);
         }
 
-        private void OpenMap(object _)
+        private async Task OpenMap(object _)
         {
-            var dlg = new Microsoft.Win32.OpenFileDialog
+            if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
+                return;
+
+            var storage = desktop.MainWindow.StorageProvider;
+            var files = await storage.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                Filter = "所有文件|*.*|图片文件|*.jpg;*.png;*.bmp;*.JPG;*.BMP;*.PNG"
-            };
-            if (dlg.ShowDialog() == true)
+                Title = "选择地图背景",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("图片文件") { Patterns = new[] { "*.jpg", "*.png", "*.bmp" } },
+                    FilePickerFileTypes.All
+                }
+            });
+
+            var file = files.FirstOrDefault();
+            if (file == null) return;
+
+            try
             {
-                try
-                {
-                    var bmp = new System.Windows.Media.Imaging.BitmapImage(new Uri(dlg.FileName));
-                    _mapTracker?.Clear();
-                    _mapTracker?.SetBackgroundImage(bmp);
-                }
-                catch (Exception ex)
-                {
-                    StatusText = $"加载图片失败: {ex.Message}";
-                    AppendRecvText($"[ERROR] 加载图片失败: {ex.Message}\r\n");
-                }
+                await using var stream = await file.OpenReadAsync();
+                var bmp = new Avalonia.Media.Imaging.Bitmap(stream);
+                _mapTracker?.Clear();
+                _mapTracker?.SetBackgroundImage(bmp);
+            }
+            catch (Exception ex)
+            {
+                StatusText = $"加载图片失败: {ex.Message}";
+                AppendRecvText($"[ERROR] 加载图片失败: {ex.Message}\r\n");
             }
         }
 
@@ -1021,7 +1032,7 @@ namespace UpperApp.ViewModels
         private async Task LoadSettingsAsync()
         {
             var settings = await _configStorage.LoadAsync();
-            Application.Current.Dispatcher.Invoke(() => ApplySettings(settings));
+            Dispatcher.UIThread.Post(() => ApplySettings(settings));
         }
 
         private void ApplySettings(AppSettings settings)

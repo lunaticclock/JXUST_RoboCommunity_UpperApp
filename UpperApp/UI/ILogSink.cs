@@ -1,5 +1,7 @@
 using System;
-using System.Windows.Controls;
+using System.Linq;
+using Avalonia.Controls;
+using Avalonia.VisualTree;
 
 namespace UpperApp.UI
 {
@@ -18,7 +20,7 @@ namespace UpperApp.UI
 
     /// <summary>
     /// 基于 TextBox.AppendText 的流式日志实现。
-    /// 利用 WPF TextContainer 的增量插入，避免全量字符串赋值带来的 UI 卡顿。
+    /// 利用 Avalonia TextBox 的增量插入，避免全量字符串赋值带来的 UI 卡顿。
     /// </summary>
     public sealed class TextBoxLogSink : ILogSink
     {
@@ -41,7 +43,7 @@ namespace UpperApp.UI
             // 用户手动滚动查看历史时暂停自动滚动
             _autoScroll = IsAtBottom();
 
-            _textBox.AppendText(text);
+            _textBox.Text += text;
 
             // 超长截断：从头部移除多余字符
             if (_textBox.Text.Length > _maxLength)
@@ -50,7 +52,7 @@ namespace UpperApp.UI
             }
 
             if (_autoScroll)
-                _textBox.ScrollToEnd();
+                ScrollToEnd();
         }
 
         public void Clear()
@@ -60,8 +62,16 @@ namespace UpperApp.UI
 
         private bool IsAtBottom()
         {
-            if (_textBox.Template.FindName("PART_ContentHost", _textBox) is not ScrollViewer sv) return true;
-            return sv.VerticalOffset >= sv.ScrollableHeight - 1;
+            var sv = _textBox.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+            if (sv == null) return true;
+            return sv.Offset.Y >= sv.Extent.Height - sv.Viewport.Height - 1;
+        }
+
+        private void ScrollToEnd()
+        {
+            var sv = _textBox.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+            if (sv != null)
+                sv.Offset = new Avalonia.Vector(sv.Offset.X, sv.Extent.Height - sv.Viewport.Height);
         }
     }
 }

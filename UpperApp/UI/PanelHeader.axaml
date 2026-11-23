@@ -1,0 +1,18 @@
+<UserControl x:Class="UpperApp.UI.PanelHeader"
+             xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:UpperApp.UI">
+    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+        <Ellipse Width="10" Height="10"
+                 Fill="{Binding DotColor, RelativeSource={RelativeSource AncestorType=ui:PanelHeader}}"
+                 Margin="0,0,10,0" VerticalAlignment="Center">
+            <Ellipse.Effect>
+                <DropShadowEffect Color="{Binding DotColor.Color, RelativeSource={RelativeSource AncestorType=ui:PanelHeader}}"
+                                  BlurRadius="8" Opacity="0.6"/>
+            </Ellipse.Effect>
+        </Ellipse>
+        <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=ui:PanelHeader}}"
+                   FontSize="16" FontWeight="Bold"
+                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+    </StackPanel>
+</UserControl>

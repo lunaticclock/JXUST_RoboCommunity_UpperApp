@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Media;
-using System.Windows.Shapes;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.Shapes;
+using Avalonia.Media;
 
 namespace UpperApp.UI
 {
@@ -47,10 +47,10 @@ namespace UpperApp.UI
 
             if (_lastX < 0)
             {
-                // Canvas 未完成布局时 ActualWidth/ActualHeight 可能为 0，跳过本次避免起点落在左上角
-                if (_canvas.ActualWidth <= 0 || _canvas.ActualHeight <= 0) return;
-                _lastX = _canvas.ActualWidth / 2;
-                _lastY = _canvas.ActualHeight / 2;
+                // Canvas 未完成布局时 Bounds 可能为 0，跳过本次避免起点落在左上角
+                if (_canvas.Bounds.Width <= 0 || _canvas.Bounds.Height <= 0) return;
+                _lastX = _canvas.Bounds.Width / 2;
+                _lastY = _canvas.Bounds.Height / 2;
             }
 
             double newX = _lastX + dx;
@@ -79,9 +79,9 @@ namespace UpperApp.UI
             _lastY = newY;
         }
 
-        public void SetBackgroundImage(ImageSource source)
+        public void SetBackgroundImage(IImageBrushSource source)
         {
-            _canvas.Background = new ImageBrush(source);
+            _canvas.Background = new ImageBrush { Source = source };
         }
 
         public void OnMapClick(Point p, Action<string> logCallback)
@@ -104,11 +104,11 @@ namespace UpperApp.UI
 
                 var line = new Line
                 {
-                    X1 = _startPoint.Value.X, Y1 = _startPoint.Value.Y,
-                    X2 = _endPoint.Value.X, Y2 = _endPoint.Value.Y,
+                    StartPoint = _startPoint.Value,
+                    EndPoint = _endPoint.Value,
                     Stroke = Brushes.Yellow,
                     StrokeThickness = 1,
-                    StrokeDashArray = [4, 2]
+                    StrokeDashArray = new Avalonia.Collections.AvaloniaList<double> { 4, 2 }
                 };
                 _canvas.Children.Add(line);
             }
@@ -126,15 +126,13 @@ namespace UpperApp.UI
                     {
                         Stroke = Brushes.Yellow,
                         StrokeThickness = 1,
-                        StrokeDashArray = [4, 2],
+                        StrokeDashArray = new Avalonia.Collections.AvaloniaList<double> { 4, 2 },
                         Opacity = 0.5
                     };
                     _canvas.Children.Add(_previewLine);
                 }
-                _previewLine.X1 = _startPoint.Value.X;
-                _previewLine.Y1 = _startPoint.Value.Y;
-                _previewLine.X2 = p.X;
-                _previewLine.Y2 = p.Y;
+                _previewLine.StartPoint = _startPoint.Value;
+                _previewLine.EndPoint = p;
             }
         }
 

@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Media;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Media;
 
 namespace UpperApp.UI
 {
@@ -26,12 +26,6 @@ namespace UpperApp.UI
         private readonly Queue<int> _rx = new();
         private readonly Queue<int> _tx = new();
 
-        static TrafficChart()
-        {
-            DefaultStyleKeyProperty.OverrideMetadata(typeof(TrafficChart),
-                new FrameworkPropertyMetadata(typeof(TrafficChart)));
-        }
-
         public TrafficChart()
         {
             // 预填 60 个 0，使曲线一开始就占满整个时间轴（底部水平线）
@@ -52,10 +46,10 @@ namespace UpperApp.UI
             InvalidateVisual();
         }
 
-        protected override void OnRender(DrawingContext dc)
+        public override void Render(DrawingContext dc)
         {
-            double w = ActualWidth;
-            double h = ActualHeight;
+            double w = Bounds.Width;
+            double h = Bounds.Height;
             double padL = 32, padR = 6, padT = 6, padB = 12;
             double chartW = w - padL - padR;
             double chartH = h - padT - padB;
@@ -78,13 +72,13 @@ namespace UpperApp.UI
                 double labelVal = yMax * (4 - i) / 4;
                 string label = FormatBytes(labelVal);
                 var fmt = new FormattedText(label, CultureInfo.CurrentCulture,
-                    FlowDirection.LeftToRight, FontFace, 8, TextMuted, 1);
+                    FlowDirection.LeftToRight, FontFace, 8, TextMuted);
                 dc.DrawText(fmt, new Point(padL - fmt.Width - 2, y - fmt.Height / 2));
             }
 
             // X 轴标签
             var xLabel = new FormattedText("60s", CultureInfo.CurrentCulture,
-                FlowDirection.LeftToRight, FontFace, 8, TextMuted, 1);
+                FlowDirection.LeftToRight, FontFace, 8, TextMuted);
             dc.DrawText(xLabel, new Point(padL, h - padB + 2));
 
             // 画 Rx 曲线（绿）
@@ -110,12 +104,12 @@ namespace UpperApp.UI
             // Rx
             dc.DrawLine(RxPen, new Point(x, y + 4), new Point(x + 12, y + 4));
             var rxLabel = new FormattedText("Rx", CultureInfo.CurrentCulture,
-                FlowDirection.LeftToRight, FontFace, 9, TextPrimary, 1);
+                FlowDirection.LeftToRight, FontFace, 9, TextPrimary);
             dc.DrawText(rxLabel, new Point(x + 16, y));
             // Tx
             dc.DrawLine(TxPen, new Point(x + 36, y + 4), new Point(x + 48, y + 4));
             var txLabel = new FormattedText("Tx", CultureInfo.CurrentCulture,
-                FlowDirection.LeftToRight, FontFace, 9, TextPrimary, 1);
+                FlowDirection.LeftToRight, FontFace, 9, TextPrimary);
             dc.DrawText(txLabel, new Point(x + 52, y));
         }
 
@@ -131,7 +125,7 @@ namespace UpperApp.UI
                 double x = padL + chartW * idx / (maxSamples - 1);
                 double y = padT + chartH * (1 - v / yMax);
                 if (first) { fig.StartPoint = new Point(x, y); first = false; }
-                else fig.Segments.Add(new LineSegment(new Point(x, y), true));
+                else fig.Segments.Add(new LineSegment { Point = new Point(x, y) });
                 idx++;
             }
             geo.Figures.Add(fig);
@@ -150,6 +144,6 @@ namespace UpperApp.UI
         private static readonly Pen GridPen = new(new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x30)), 1);
         private static readonly Pen RxPen = new(new SolidColorBrush(Color.FromRgb(0x00, 0xD4, 0xAA)), 1.5);
         private static readonly Pen TxPen = new(new SolidColorBrush(Color.FromRgb(0x4A, 0x9E, 0xFF)), 1.5);
-        private static readonly Typeface FontFace = new("Microsoft YaHei UI, Segoe UI, sans-serif");
+        private static readonly Typeface FontFace = new(new FontFamily("Microsoft YaHei UI, Segoe UI, sans-serif"));
     }
 }

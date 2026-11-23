@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Shapes;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Shapes;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Layout;
 
 namespace UpperApp.UI
 {
@@ -13,40 +16,40 @@ namespace UpperApp.UI
     /// Y 轴: 速度 (0=后, 50=停, 100=前)
     /// 松手/松键自动回中并发送停止命令。
     /// </summary>
-    public class JoystickControl : Control
+    public class JoystickControl : TemplatedControl
     {
         #region 依赖属性
 
-        public static readonly DependencyProperty SpeedProperty =
-            DependencyProperty.Register(nameof(Speed), typeof(int), typeof(JoystickControl),
-                new FrameworkPropertyMetadata(50, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnValueChanged));
+        public static readonly StyledProperty<int> SpeedProperty =
+            AvaloniaProperty.Register<JoystickControl, int>(nameof(Speed), 50,
+                defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
 
-        public static readonly DependencyProperty DirectionProperty =
-            DependencyProperty.Register(nameof(Direction), typeof(int), typeof(JoystickControl),
-                new FrameworkPropertyMetadata(50, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnValueChanged));
+        public static readonly StyledProperty<int> DirectionProperty =
+            AvaloniaProperty.Register<JoystickControl, int>(nameof(Direction), 50,
+                defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
 
-        public static readonly DependencyProperty IsActiveProperty =
-            DependencyProperty.Register(nameof(IsActive), typeof(bool), typeof(JoystickControl),
-                new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+        public static readonly StyledProperty<bool> IsActiveProperty =
+            AvaloniaProperty.Register<JoystickControl, bool>(nameof(IsActive),
+                defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
 
         /// <summary>速度 0-100, 50=停止</summary>
         public int Speed
         {
-            get => (int)GetValue(SpeedProperty);
+            get => GetValue(SpeedProperty);
             set => SetValue(SpeedProperty, value);
         }
 
         /// <summary>方向 0-100, 50=居中</summary>
         public int Direction
         {
-            get => (int)GetValue(DirectionProperty);
+            get => GetValue(DirectionProperty);
             set => SetValue(DirectionProperty, value);
         }
 
         /// <summary>摇杆是否激活（正在拖拽或按键）</summary>
         public bool IsActive
         {
-            get => (bool)GetValue(IsActiveProperty);
+            get => GetValue(IsActiveProperty);
             set => SetValue(IsActiveProperty, value);
         }
 
@@ -62,28 +65,31 @@ namespace UpperApp.UI
 
         static JoystickControl()
         {
-            DefaultStyleKeyProperty.OverrideMetadata(typeof(JoystickControl),
-                new FrameworkPropertyMetadata(typeof(JoystickControl)));
-            FocusableProperty.OverrideMetadata(typeof(JoystickControl),
-                new FrameworkPropertyMetadata(true));
+            SpeedProperty.Changed.AddClassHandler<JoystickControl>((c, e) => c.OnValueChanged(e));
+            DirectionProperty.Changed.AddClassHandler<JoystickControl>((c, e) => c.OnValueChanged(e));
         }
 
-        protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
+        public JoystickControl()
+        {
+            Focusable = true;
+            LostFocus += OnLostFocus;
+        }
+
+        protected override void OnPointerPressed(PointerPressedEventArgs e)
         {
             Focus();
             e.Handled = true;
         }
 
-        public override void OnApplyTemplate()
+        protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
         {
-            base.OnApplyTemplate();
-            _thumb = GetTemplateChild("PART_Thumb") as Ellipse;
+            base.OnApplyTemplate(e);
+            _thumb = e.NameScope.Find("PART_Thumb") as Ellipse;
             if (_thumb != null)
             {
-                _thumb.MouseLeftButtonDown += Thumb_MouseLeftButtonDown;
-                _thumb.MouseMove += Thumb_MouseMove;
-                _thumb.MouseLeftButtonUp += Thumb_MouseLeftButtonUp;
-                _thumb.LostMouseCapture += Thumb_LostMouseCapture;
+                _thumb.PointerPressed += Thumb_PointerPressed;
+                _thumb.PointerMoved += Thumb_PointerMoved;
+                _thumb.PointerReleased += Thumb_PointerReleased;
             }
             UpdateThumbPosition();
         }
@@ -98,21 +104,21 @@ namespace UpperApp.UI
 
         #region 鼠标拖拽
 
-        private void Thumb_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        private void Thumb_PointerPressed(object sender, PointerPressedEventArgs e)
         {
             _isDragging = true;
             IsActive = true;
-            _thumb.CaptureMouse();
+            e.Pointer.Capture(_thumb);
             e.Handled = true;
         }
 
-        private void Thumb_MouseMove(object sender, MouseEventArgs e)
+        private void Thumb_PointerMoved(object sender, PointerEventArgs e)
         {
             if (!_isDragging) return;
 
             var pos = e.GetPosition(this);
-            var cx = ActualWidth / 2;
-            var cy = ActualHeight / 2;
+            var cx = Bounds.Width / 2;
+            var cy = Bounds.Height / 2;
 
             var dx = pos.X - cx;
             var dy = pos.Y - cy;
@@ -149,15 +155,10 @@ namespace UpperApp.UI
             if (Direction != newDir) Direction = newDir;
         }
 
-        private void Thumb_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        private void Thumb_PointerReleased(object sender, PointerReleasedEventArgs e)
         {
             ReleaseJoystick();
             e.Handled = true;
-        }
-
-        private void Thumb_LostMouseCapture(object sender, MouseEventArgs e)
-        {
-            ReleaseJoystick();
         }
 
         private void ReleaseJoystick()
@@ -166,8 +167,7 @@ namespace UpperApp.UI
             _isDragging = false;
             IsActive = false;
 
-            if (_thumb != null && _thumb.IsMouseCaptured)
-                _thumb.ReleaseMouseCapture();
+            // Avalonia 中 pointer capture 在 release 时自动释放
 
             // 松手回中
             Speed = 50;
@@ -205,14 +205,13 @@ namespace UpperApp.UI
             base.OnKeyUp(e);
         }
 
-        protected override void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs e)
+        private void OnLostFocus(object? sender, RoutedEventArgs e)
         {
             if (_pressedKeys.Count > 0)
             {
                 _pressedKeys.Clear();
                 ApplyKeyboardState();
             }
-            base.OnLostKeyboardFocus(e);
         }
 
         private static Key NormalizeKey(Key key)
@@ -265,19 +264,19 @@ namespace UpperApp.UI
 
         #endregion
 
-        private static void OnValueChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        private void OnValueChanged(AvaloniaPropertyChangedEventArgs e)
         {
-            if (d is JoystickControl jc && !jc._isDragging && jc._pressedKeys.Count == 0)
-                jc.UpdateThumbPosition();
+            if (!_isDragging && _pressedKeys.Count == 0)
+                UpdateThumbPosition();
         }
 
         private void UpdateThumbPosition(Size? size = null)
         {
             if (_thumb == null || _baseRadius <= 0) return;
 
-            // 优先使用传入的尺寸（ArrangeOverride 期间 ActualWidth 还未更新）
-            var w = size?.Width ?? ActualWidth;
-            var h = size?.Height ?? ActualHeight;
+            // 优先使用传入的尺寸（ArrangeOverride 期间 Bounds.Width 还未更新）
+            var w = size?.Width ?? Bounds.Width;
+            var h = size?.Height ?? Bounds.Height;
             var cx = w / 2;
             var cy = h / 2;
 

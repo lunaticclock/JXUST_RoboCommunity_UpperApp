@@ -1,8 +1,8 @@
 using System;
 using System.Globalization;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Media;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Media;
 
 namespace UpperApp.UI
 {
@@ -21,27 +21,25 @@ namespace UpperApp.UI
     {
         private static readonly string[] Labels = { "Serial", "TCP", "UDP", "BT", "WS", "CAN" };
 
+        public static readonly StyledProperty<string> StatesProperty =
+            AvaloniaProperty.Register<ChannelStatusIndicator, string>(nameof(States), "0;0;0;0;0;0");
+
         static ChannelStatusIndicator()
         {
-            DefaultStyleKeyProperty.OverrideMetadata(typeof(ChannelStatusIndicator),
-                new FrameworkPropertyMetadata(typeof(ChannelStatusIndicator)));
+            AffectsRender<ChannelStatusIndicator>(StatesProperty);
         }
-
-        public static readonly DependencyProperty StatesProperty =
-            DependencyProperty.Register(nameof(States), typeof(string), typeof(ChannelStatusIndicator),
-                new FrameworkPropertyMetadata("0;0;0;0;0;0", FrameworkPropertyMetadataOptions.AffectsRender));
 
         /// <summary>6 个通道状态码，分号分隔（0=断开 1=连接中 2=已连接 3=异常）</summary>
         public string States
         {
-            get => (string)GetValue(StatesProperty);
+            get => GetValue(StatesProperty);
             set => SetValue(StatesProperty, value);
         }
 
-        protected override void OnRender(DrawingContext dc)
+        public override void Render(DrawingContext dc)
         {
-            double w = ActualWidth;
-            double h = ActualHeight;
+            double w = Bounds.Width;
+            double h = Bounds.Height;
             dc.DrawRectangle(BgBrush, null, new Rect(0, 0, w, h));
 
             int count = Labels.Length;
@@ -66,7 +64,7 @@ namespace UpperApp.UI
 
                 // 标签
                 var fmt = new FormattedText(Labels[i], CultureInfo.CurrentCulture,
-                    FlowDirection.LeftToRight, FontFace, 9, TextMuted, 1);
+                    FlowDirection.LeftToRight, FontFace, 9, TextMuted);
                 dc.DrawText(fmt, new Point(cx - fmt.Width / 2, labelY - fmt.Height / 2));
             }
         }
@@ -99,6 +97,6 @@ namespace UpperApp.UI
         private static readonly Brush ErrorBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0x5C, 0x5C));
         private static readonly Brush GlowGreen = new SolidColorBrush(Color.FromRgb(0x3D, 0xDC, 0x84)) { Opacity = 0.25 };
         private static readonly Brush TextMuted = new SolidColorBrush(Color.FromRgb(0x8E, 0x8E, 0x98));
-        private static readonly Typeface FontFace = new("Microsoft YaHei UI, Segoe UI, sans-serif");
+        private static readonly Typeface FontFace = new(new FontFamily("Microsoft YaHei UI, Segoe UI, sans-serif"));
     }
 }

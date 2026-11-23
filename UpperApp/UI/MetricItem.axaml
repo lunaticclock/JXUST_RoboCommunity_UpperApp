@@ -1,0 +1,12 @@
+<UserControl x:Class="UpperApp.UI.MetricItem"
+             xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:UpperApp.UI">
+    <StackPanel HorizontalAlignment="Center">
+        <TextBlock Text="{Binding Label, RelativeSource={RelativeSource AncestorType=ui:MetricItem}}"
+                   Classes="DataLabel" HorizontalAlignment="Center"/>
+        <TextBlock Text="{Binding Value, RelativeSource={RelativeSource AncestorType=ui:MetricItem}}"
+                   Classes="DataValue"
+                   FontSize="{Binding ValueFontSize, RelativeSource={RelativeSource AncestorType=ui:MetricItem}}"/>
+    </StackPanel>
+</UserControl>

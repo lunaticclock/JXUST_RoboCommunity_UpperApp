@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Versioning;
 using System.Threading;
-using UpperApp.Commands;
 using UpperApp.Communication;
 using UpperApp.Core;
 
@@ -10,7 +10,6 @@ namespace UpperApp.Services
 {
     internal class DeviceService : IDisposable
     {
-        private readonly ICommunicatorFactory _factory;
         private readonly Dictionary<ChannelType, ICommunicator> _cache = [];
         private readonly Lock _cacheLock = new();
         private ChannelType _activeChannel = ChannelType.Serial;
@@ -19,10 +18,17 @@ namespace UpperApp.Services
 
         public event Action<StatusEvent> StatusChanged;
 
-        public DeviceService(ICommunicatorFactory factory)
+        [SupportedOSPlatform("windows10.0.19041.0")]
+        private static ICommunicator Create(ChannelType channel) => channel switch
         {
-            _factory = factory;
-        }
+            ChannelType.Serial => new TouchSocketSerialAdapter(),
+            ChannelType.TCP => new TouchSocketTcpAdapter(),
+            ChannelType.UDP => new TouchSocketUdpAdapter(),
+            ChannelType.Bluetooth => new BthManager(),
+            ChannelType.CAN => new CANManager(),
+            ChannelType.WebSocket => new WebSocketManager(),
+            _ => throw new NotSupportedException($"不支持的通道类型: {channel}")
+        };
 
         public ChannelType ActiveChannel
         {
@@ -38,7 +44,7 @@ namespace UpperApp.Services
                     return comm;
             }
 
-            var instance = _factory.Create(channel);
+            var instance = Create(channel);
             instance.StatusChanged += OnCommunicatorStatusChanged;
 
             lock (_cacheLock)
@@ -109,11 +115,9 @@ namespace UpperApp.Services
         public void SetTarget(string target) => _pendingTarget = target;
         public void SetBluetoothTarget(string target) => _pendingBthTarget = target;
 
-        public bool TryExecuteCommand(IDeviceCommand command)
+        public bool TrySendString(string protocol, ChannelType? channelOverride = null)
         {
-            var channel = command.TargetChannel == ChannelType.Unknown
-                ? _activeChannel
-                : command.TargetChannel;
+            var channel = channelOverride ?? _activeChannel;
 
             ICommunicator comm;
             lock (_cacheLock)
@@ -122,8 +126,7 @@ namespace UpperApp.Services
             }
             if (comm.State != DeviceState.Connected) return false;
 
-            string target = ResolveTarget(channel);
-            comm.Send(command.Encode(), target);
+            comm.Send(protocol, ResolveTarget(channel));
             return true;
         }
 

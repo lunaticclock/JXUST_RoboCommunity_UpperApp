@@ -1,0 +1,622 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="using:UpperApp.UI">
+    <Styles.Resources>
+    <!-- ============================================================
+         小车上位机 V7.0 - 现代暗色主题 v2
+         风格: 深色玻璃拟态 + 工业控制面板
+         ============================================================ -->
+
+    <!-- ===== 颜色系统 ===== -->
+    <!-- 背景层级: 从深到浅，拉开对比度 -->
+    <Color x:Key="BgDeep">#0D0D0F</Color>
+    <Color x:Key="BgPrimary">#141416</Color>
+    <Color x:Key="BgSecondary">#1E1E22</Color>
+    <Color x:Key="BgCard">#252529</Color>
+    <Color x:Key="BgElevated">#2D2D32</Color>
+    <Color x:Key="BgHover">#35353B</Color>
+
+    <!-- 边框与分隔 -->
+    <Color x:Key="BorderSubtle">#2A2A2E</Color>
+    <Color x:Key="BorderDefault">#3A3A40</Color>
+    <Color x:Key="BorderFocus">#58A6FF</Color>
+
+    <!-- 文字层级 -->
+    <Color x:Key="TextPrimary">#F0F0F5</Color>
+    <Color x:Key="TextSecondary">#B0B0B8</Color>
+    <Color x:Key="TextMuted">#6E6E78</Color>
+    <Color x:Key="TextDisabled">#4A4A52</Color>
+
+    <!-- 强调色: 更饱和、更有科技感 -->
+    <Color x:Key="AccentBlue">#4C9AFF</Color>
+    <Color x:Key="AccentBlueHover">#6BB3FF</Color>
+    <Color x:Key="AccentBluePressed">#3A8CE8</Color>
+    <Color x:Key="AccentCyan">#00D4AA</Color>
+    <Color x:Key="AccentGreen">#3DDC84</Color>
+    <Color x:Key="AccentGreenHover">#5EE69B</Color>
+    <Color x:Key="AccentOrange">#FF9F43</Color>
+
+    <!-- ===== Brush 资源 ===== -->
+    <SolidColorBrush x:Key="BgDeepBrush" Color="{StaticResource BgDeep}"/>
+    <SolidColorBrush x:Key="BgPrimaryBrush" Color="{StaticResource BgPrimary}"/>
+    <SolidColorBrush x:Key="BgSecondaryBrush" Color="{StaticResource BgSecondary}"/>
+    <SolidColorBrush x:Key="BgCardBrush" Color="{StaticResource BgCard}"/>
+    <SolidColorBrush x:Key="BgElevatedBrush" Color="{StaticResource BgElevated}"/>
+    <SolidColorBrush x:Key="BgHoverBrush" Color="{StaticResource BgHover}"/>
+
+    <SolidColorBrush x:Key="BorderSubtleBrush" Color="{StaticResource BorderSubtle}"/>
+    <SolidColorBrush x:Key="BorderDefaultBrush" Color="{StaticResource BorderDefault}"/>
+    <SolidColorBrush x:Key="BorderFocusBrush" Color="{StaticResource BorderFocus}"/>
+
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimary}"/>
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondary}"/>
+    <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMuted}"/>
+    <SolidColorBrush x:Key="TextDisabledBrush" Color="{StaticResource TextDisabled}"/>
+
+    <SolidColorBrush x:Key="AccentBlueBrush" Color="{StaticResource AccentBlue}"/>
+    <SolidColorBrush x:Key="AccentBlueHoverBrush" Color="{StaticResource AccentBlueHover}"/>
+    <SolidColorBrush x:Key="AccentBluePressedBrush" Color="{StaticResource AccentBluePressed}"/>
+    <SolidColorBrush x:Key="AccentCyanBrush" Color="{StaticResource AccentCyan}"/>
+    <SolidColorBrush x:Key="AccentGreenBrush" Color="{StaticResource AccentGreen}"/>
+    <SolidColorBrush x:Key="AccentGreenHoverBrush" Color="{StaticResource AccentGreenHover}"/>
+    <SolidColorBrush x:Key="AccentOrangeBrush" Color="{StaticResource AccentOrange}"/>
+
+    <!-- ===== 阴影效果 (必须在样式之前定义) ===== -->
+    <DropShadowEffect x:Key="DropShadowEffect"
+                      Color="Black"
+                      OffsetX="0"
+                      OffsetY="0"
+                      BlurRadius="16"
+                      Opacity="0.4"/>
+
+    <!-- ===== 全局字体 ===== -->
+    <!-- 注意：Avalonia 不支持 WPF 风格的逗号分隔字体回退链，只能用单一字体名 -->
+    <FontFamily x:Key="FontMono">Consolas</FontFamily>
+    <FontFamily x:Key="FontUI">Microsoft YaHei UI</FontFamily>
+    </Styles.Resources>
+
+    <!-- ===== 全局样式 ===== -->
+    <Style Selector="Window">
+        <Setter Property="Background" Value="{StaticResource BgDeepBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="FontFamily" Value="{DynamicResource FontUI}"/>
+        <Setter Property="FontSize" Value="13"/>
+    </Style>
+
+    <!-- 全局 TextBlock 样式：用 DynamicResource 避免样式 Setter 中 StaticResource 查找问题 -->
+    <Style Selector="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="FontFamily" Value="{DynamicResource FontUI}"/>
+    </Style>
+
+    <Style Selector="Grid">
+        <Setter Property="Background" Value="Transparent"/>
+    </Style>
+
+    <!-- ===== 卡片容器 ===== -->
+    <Style Selector="Border.CardStyle">
+        <Setter Property="Background" Value="{StaticResource BgCardBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BorderSubtleBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="16"/>
+        <Setter Property="Margin" Value="0,0,0,12"/>
+    </Style>
+
+    <!-- ===== Section 标题 ===== -->
+    <Style Selector="TextBlock.SectionHeader">
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Margin" Value="0,0,0,12"/>
+    </Style>
+
+    <!-- ===== TabControl 现代样式 ===== -->
+    <Style Selector="TabControl">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+    </Style>
+
+    <Style Selector="TabItem">
+        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Padding" Value="16,10"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="BorderThickness" Value="0,0,0,2"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="Border"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        Padding="{TemplateBinding Padding}">
+                    <ContentPresenter Content="{TemplateBinding Header}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"/>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+        <Style Selector="^:selected">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+        <Style Selector="^:selected /template/ Border#Border">
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+        </Style>
+        <Style Selector="^:pointerover:not(:selected)">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+        </Style>
+        <Style Selector="^:pointerover:not(:selected) /template/ Border#Border">
+            <Setter Property="Background" Value="{StaticResource BgSecondaryBrush}"/>
+        </Style>
+    </Style>
+
+    <!-- ===== 按钮样式 ===== -->
+    <Style Selector="Button">
+        <Setter Property="Background" Value="{StaticResource BgElevatedBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BorderDefaultBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="15,8"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border x:Name="border"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="6"
+                        Padding="{TemplateBinding Padding}"
+                        RenderTransformOrigin="0.5,0.5">
+                    <Border.RenderTransform>
+                        <ScaleTransform ScaleX="1" ScaleY="1"/>
+                    </Border.RenderTransform>
+                    <ContentPresenter Content="{TemplateBinding Content}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"/>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+        <Style Selector="^:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+        <Style Selector="^:pointerover /template/ Border#border">
+            <Setter Property="Background" Value="{StaticResource BgHoverBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderFocusBrush}"/>
+        </Style>
+        <Style Selector="^:pressed /template/ Border#border">
+            <Setter Property="Background" Value="{StaticResource BgSecondaryBrush}"/>
+            <Setter Property="RenderTransform">
+                <ScaleTransform ScaleX="0.98" ScaleY="0.98"/>
+            </Setter>
+        </Style>
+        <Style Selector="^:disabled">
+            <Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}"/>
+        </Style>
+        <Style Selector="^:disabled /template/ Border#border">
+            <Setter Property="BorderBrush" Value="{StaticResource BorderSubtleBrush}"/>
+            <Setter Property="Background" Value="{StaticResource BgSecondaryBrush}"/>
+        </Style>
+    </Style>
+
+    <Style Selector="Button.PrimaryButton">
+        <Setter Property="Background" Value="{StaticResource AccentBlueBrush}"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Style Selector="^:pointerover">
+            <Setter Property="Background" Value="{StaticResource AccentBlueHoverBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBlueHoverBrush}"/>
+        </Style>
+        <Style Selector="^:pressed">
+            <Setter Property="Background" Value="{StaticResource AccentBluePressedBrush}"/>
+        </Style>
+    </Style>
+
+    <Style Selector="Button.SuccessButton">
+        <Setter Property="Background" Value="{StaticResource AccentGreenBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource BgDeepBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Style Selector="^:pointerover">
+            <Setter Property="Background" Value="{StaticResource AccentGreenHoverBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AccentGreenHoverBrush}"/>
+        </Style>
+    </Style>
+
+    <!-- ===== 输入框样式 ===== -->
+    <Style Selector="TextBox">
+        <Setter Property="Background" Value="{StaticResource BgPrimaryBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BorderDefaultBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="10,0"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="CaretBrush" Value="{StaticResource AccentBlueBrush}"/>
+        <Setter Property="SelectionBrush" Value="{StaticResource AccentBlueBrush}"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border x:Name="border"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="6"
+                        Padding="{TemplateBinding Padding}">
+                    <ScrollViewer x:Name="PART_ContentHost"
+                                  Focusable="False"
+                                  HorizontalScrollBarVisibility="Hidden"
+                                  VerticalScrollBarVisibility="Hidden"
+                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                  Background="{x:Null}">
+                        <TextPresenter x:Name="PART_TextPresenter"
+                                       Text="{TemplateBinding Text}"/>
+                    </ScrollViewer>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+        <Style Selector="^:focus /template/ Border#border">
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+            <Setter Property="Effect">
+                <DropShadowEffect Color="{StaticResource AccentBlue}"
+                                  OffsetX="0"
+                                  OffsetY="0"
+                                  BlurRadius="8"
+                                  Opacity="0.3"/>
+            </Setter>
+        </Style>
+        <Style Selector="^:pointerover /template/ Border#border">
+            <Setter Property="BorderBrush" Value="{StaticResource BorderFocusBrush}"/>
+        </Style>
+        <Style Selector="^:disabled">
+            <Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}"/>
+        </Style>
+        <Style Selector="^:disabled /template/ Border#border">
+            <Setter Property="Background" Value="{StaticResource BgSecondaryBrush}"/>
+        </Style>
+    </Style>
+
+    <Style Selector="TextBox.MonoTextBox">
+        <Setter Property="Padding" Value="10,4"/>
+        <Setter Property="FontFamily" Value="{DynamicResource FontMono}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="VerticalContentAlignment" Value="Top"/>
+    </Style>
+
+    <!-- ===== ComboBox 样式 ===== -->
+    <Style Selector="ComboBox">
+        <Setter Property="Background" Value="{StaticResource BgPrimaryBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BorderDefaultBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="10,8,28,8"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid>
+                    <Border x:Name="border"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6">
+                        <Grid>
+                            <ToggleButton x:Name="ToggleButton"
+                                          Focusable="False"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                          Background="Transparent"
+                                          BorderThickness="0">
+                                <ToggleButton.Template>
+                                    <ControlTemplate>
+                                        <Grid Background="Transparent">
+                                            <Path x:Name="arrow"
+                                                  Data="M0,0 L5,5 10,0"
+                                                  Fill="{StaticResource TextMutedBrush}"
+                                                  HorizontalAlignment="Right"
+                                                  Margin="0,0,10,0"
+                                                  VerticalAlignment="Center"
+                                                  StrokeThickness="1.5"
+                                                  Stroke="{StaticResource TextMutedBrush}"
+                                                  StrokeLineCap="Round"/>
+                                        </Grid>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter x:Name="ContentSite"
+                                              IsHitTestVisible="False"
+                                              Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              Margin="10,8,28,8"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Left"/>
+                            <TextBox x:Name="PART_EditableTextBox"
+                                     CaretBrush="{StaticResource TextPrimaryBrush}"
+                                     Background="Transparent"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     BorderThickness="0"
+                                     Focusable="True"
+                                     IsReadOnly="True"
+                                     Margin="10,8,28,8"
+                                     VerticalAlignment="Center"
+                                     HorizontalAlignment="Stretch"
+                                     IsVisible="False"/>
+                        </Grid>
+                    </Border>
+                    <Popup x:Name="PART_Popup"
+                           Placement="Bottom"
+                           IsOpen="{TemplateBinding IsDropDownOpen}"
+                           Focusable="False">
+                        <Grid x:Name="DropDown"
+                              Width="{Binding Bounds.Width, RelativeSource={RelativeSource TemplatedParent}}"
+                              MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                            <Border Background="{StaticResource BgCardBrush}"
+                                    BorderBrush="{StaticResource BorderDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Effect="{StaticResource DropShadowEffect}"
+                                    HorizontalAlignment="Stretch">
+                                <ScrollViewer Margin="4"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                    <ItemsPresenter HorizontalAlignment="Stretch"/>
+                                </ScrollViewer>
+                            </Border>
+                        </Grid>
+                    </Popup>
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+        <Style Selector="^:focus /template/ Border#border">
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+        </Style>
+    </Style>
+
+    <Style Selector="ComboBoxItem">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="Padding" Value="10,8"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Style Selector="^:pointerover">
+            <Setter Property="Background" Value="{StaticResource BgElevatedBrush}"/>
+        </Style>
+        <Style Selector="^:selected">
+            <Setter Property="Background" Value="{StaticResource BgElevatedBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource AccentBlueBrush}"/>
+        </Style>
+    </Style>
+
+    <!-- ===== CheckBox 样式 ===== -->
+    <Style Selector="CheckBox">
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <StackPanel Orientation="Horizontal">
+                    <Border x:Name="checkBorder"
+                            Width="20" Height="20"
+                            Background="{StaticResource BgPrimaryBrush}"
+                            BorderBrush="{StaticResource BorderDefaultBrush}"
+                            BorderThickness="1.5"
+                            CornerRadius="5"
+                            Margin="0,0,10,0">
+                        <Path x:Name="checkMark"
+                              Data="M3,10 L7,14 13,5"
+                              Stroke="{StaticResource BgDeepBrush}"
+                              StrokeThickness="2.5"
+                              StrokeLineCap="Round"
+                              IsVisible="False"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"/>
+                    </Border>
+                    <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </ControlTemplate>
+        </Setter>
+        <Style Selector="^:checked /template/ Path#checkMark">
+            <Setter Property="IsVisible" Value="True"/>
+        </Style>
+        <Style Selector="^:checked /template/ Border#checkBorder">
+            <Setter Property="Background" Value="{StaticResource AccentBlueBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+        </Style>
+        <Style Selector="^:pointerover /template/ Border#checkBorder">
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+        </Style>
+    </Style>
+
+    <!-- ===== RadioButton 样式 ===== -->
+    <Style Selector="RadioButton">
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <StackPanel Orientation="Horizontal">
+                    <Border x:Name="radioBorder"
+                            Width="20" Height="20"
+                            Background="{StaticResource BgPrimaryBrush}"
+                            BorderBrush="{StaticResource BorderDefaultBrush}"
+                            BorderThickness="1.5"
+                            CornerRadius="10"
+                            Margin="0,0,10,0">
+                        <Ellipse x:Name="radioDot"
+                                 Width="10" Height="10"
+                                 Fill="{StaticResource AccentBlueBrush}"
+                                 IsVisible="False"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"/>
+                    </Border>
+                    <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </ControlTemplate>
+        </Setter>
+        <Style Selector="^:checked /template/ Ellipse#radioDot">
+            <Setter Property="IsVisible" Value="True"/>
+        </Style>
+        <Style Selector="^:checked /template/ Border#radioBorder">
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+        </Style>
+        <Style Selector="^:pointerover /template/ Border#radioBorder">
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+        </Style>
+    </Style>
+
+    <!-- ===== Label 样式 ===== -->
+    <Style Selector="Label">
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Margin" Value="0,0,0,4"/>
+    </Style>
+
+    <!-- ===== ScrollBar 样式 ===== -->
+    <Style Selector="ScrollBar">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Width" Value="8"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid Background="Transparent">
+                    <Track x:Name="PART_Track"
+                           IsDirectionReversed="True"
+                           Width="{TemplateBinding Width}">
+                        <Track.Thumb>
+                            <Thumb>
+                                <Thumb.Template>
+                                    <ControlTemplate>
+                                        <Border Background="{StaticResource BorderDefaultBrush}"
+                                                CornerRadius="4"
+                                                Width="6"
+                                                HorizontalAlignment="Center"/>
+                                    </ControlTemplate>
+                                </Thumb.Template>
+                            </Thumb>
+                        </Track.Thumb>
+                    </Track>
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <!-- ===== 分隔线 ===== -->
+    <Style Selector="Separator">
+        <Setter Property="Background" Value="{StaticResource BorderSubtleBrush}"/>
+        <Setter Property="Height" Value="1"/>
+        <Setter Property="Margin" Value="0,12"/>
+    </Style>
+
+    <!-- ===== 数据展示文本 ===== -->
+    <Style Selector="TextBlock.DataValue">
+        <Setter Property="FontFamily" Value="{DynamicResource FontMono}"/>
+        <Setter Property="FontSize" Value="20"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="{DynamicResource AccentOrangeBrush}"/>
+    </Style>
+
+    <Style Selector="TextBlock.DataLabel">
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+        <Setter Property="Margin" Value="0,0,0,4"/>
+    </Style>
+
+    <!-- ===== 虚拟摇杆样式 ===== -->
+    <Style Selector="ui|JoystickControl">
+        <Setter Property="Width" Value="200"/>
+        <Setter Property="Height" Value="200"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid>
+                    <!-- 焦点发光环 (默认隐藏) -->
+                    <Ellipse x:Name="FocusRing" Width="196" Height="196"
+                             Fill="Transparent"
+                             Stroke="{StaticResource AccentCyanBrush}"
+                             StrokeThickness="2"
+                             Opacity="0">
+                        <Ellipse.Effect>
+                            <DropShadowEffect Color="{StaticResource AccentCyan}" OffsetX="0" OffsetY="0" BlurRadius="16" Opacity="0.8"/>
+                        </Ellipse.Effect>
+                    </Ellipse>
+                    <!-- 基座外圈 -->
+                    <Ellipse Width="190" Height="190"
+                             Fill="{StaticResource BgPrimaryBrush}"
+                             Stroke="{StaticResource BorderDefaultBrush}"
+                             StrokeThickness="1"/>
+                    <!-- 基座内圈 -->
+                    <Ellipse Width="160" Height="160"
+                             Fill="{StaticResource BgSecondaryBrush}"
+                             Stroke="{StaticResource BorderSubtleBrush}"
+                             StrokeThickness="1"/>
+                    <!-- 十字辅助线 -->
+                    <Line StartPoint="100,20" EndPoint="100,180"
+                          Stroke="{StaticResource BorderSubtleBrush}" StrokeThickness="1" StrokeDashArray="3,3"/>
+                    <Line StartPoint="20,100" EndPoint="180,100"
+                          Stroke="{StaticResource BorderSubtleBrush}" StrokeThickness="1" StrokeDashArray="3,3"/>
+                    <!-- 中心点 -->
+                    <Ellipse Width="6" Height="6" Fill="{StaticResource TextMutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <!-- 方向标签 -->
+                    <TextBlock x:Name="LabelFront" Text="前" FontSize="10" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,6,0,0"/>
+                    <TextBlock Text="后" FontSize="10" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,6"/>
+                    <TextBlock Text="左" FontSize="10" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="6,0,0,0"/>
+                    <TextBlock Text="右" FontSize="10" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,6,0"/>
+                    <!-- 摇杆 thumb -->
+                    <Canvas Width="200" Height="200" ClipToBounds="False">
+                        <Ellipse x:Name="PART_Thumb" Width="44" Height="44"
+                                 Fill="{StaticResource AccentCyanBrush}"
+                                 Stroke="{StaticResource BgCardBrush}"
+                                 StrokeThickness="3"
+                                 Cursor="Hand">
+                            <Ellipse.Effect>
+                                <DropShadowEffect Color="{StaticResource AccentCyan}" OffsetX="0" OffsetY="0" BlurRadius="12" Opacity="0.5"/>
+                            </Ellipse.Effect>
+                        </Ellipse>
+                    </Canvas>
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+        <Style Selector="^:focus /template/ Ellipse#FocusRing">
+            <Setter Property="Opacity" Value="1"/>
+        </Style>
+        <Style Selector="^:focus /template/ TextBlock#LabelFront">
+            <Setter Property="Foreground" Value="{DynamicResource AccentCyanBrush}"/>
+        </Style>
+    </Style>
+
+    <!-- ===== 姿态仪表样式 ===== -->
+    <Style Selector="ui|CompassGauge">
+        <Setter Property="Width" Value="100"/>
+        <Setter Property="Height" Value="100"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="ui|AttitudeIndicator">
+        <Setter Property="Width" Value="100"/>
+        <Setter Property="Height" Value="100"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="ui|DistanceGauge">
+        <Setter Property="Width" Value="100"/>
+        <Setter Property="Height" Value="100"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="ui|TrafficChart">
+        <Setter Property="Height" Value="80"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="VerticalAlignment" Value="Stretch"/>
+    </Style>
+
+    <Style Selector="ui|ChannelStatusIndicator">
+        <Setter Property="Height" Value="28"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="VerticalAlignment" Value="Stretch"/>
+    </Style>
+
+</Styles>

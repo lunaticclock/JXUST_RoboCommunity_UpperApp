@@ -1,5 +1,5 @@
-using System.Windows;
-using System.Windows.Controls;
+using Avalonia;
+using Avalonia.Controls;
 
 namespace UpperApp.UI
 {
@@ -8,17 +8,15 @@ namespace UpperApp.UI
     /// </summary>
     public partial class MetricLabel : UserControl
     {
-        public static readonly DependencyProperty LabelProperty =
-            DependencyProperty.Register(nameof(Label), typeof(string), typeof(MetricLabel),
-                new PropertyMetadata(""));
+        public static readonly StyledProperty<string> LabelProperty =
+            AvaloniaProperty.Register<MetricLabel, string>(nameof(Label), "");
 
-        public static readonly DependencyProperty ValueProperty =
-            DependencyProperty.Register(nameof(Value), typeof(object), typeof(MetricLabel),
-                new PropertyMetadata(""));
+        public static readonly StyledProperty<object> ValueProperty =
+            AvaloniaProperty.Register<MetricLabel, object>(nameof(Value), "");
 
         public string Label
         {
-            get => (string)GetValue(LabelProperty);
+            get => GetValue(LabelProperty);
             set => SetValue(LabelProperty, value);
         }
 

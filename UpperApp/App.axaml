@@ -1,0 +1,9 @@
+<Application x:Class="UpperApp.App"
+             xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             RequestedThemeVariant="Dark">
+    <Application.Styles>
+        <FluentTheme />
+        <StyleInclude Source="avares://UpperApp/Themes/DarkTheme.axaml"/>
+    </Application.Styles>
+</Application>

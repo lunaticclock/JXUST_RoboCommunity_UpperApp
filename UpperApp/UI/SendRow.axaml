@@ -1,0 +1,16 @@
+<UserControl x:Class="UpperApp.UI.SendRow"
+             xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:UpperApp.UI">
+    <Grid Height="35">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <TextBox Grid.Column="0"
+                 Text="{Binding Text, RelativeSource={RelativeSource AncestorType=ui:SendRow}}"
+                 Margin="0,0,8,0"/>
+        <Button Grid.Column="1" Content="发送" Width="60"
+                Command="{Binding SendCommand, RelativeSource={RelativeSource AncestorType=ui:SendRow}}"/>
+    </Grid>
+</UserControl>

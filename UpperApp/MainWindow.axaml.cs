@@ -1,5 +1,8 @@
-using System.Windows;
-using System.Windows.Input;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Threading;
 using UpperApp.UI;
 using UpperApp.ViewModels;
 
@@ -30,12 +33,12 @@ namespace UpperApp
             }
         }
 
-        private void MapCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        private void MapCanvas_PointerPressed(object sender, PointerPressedEventArgs e)
         {
             var p = e.GetPosition(MapCanvas);
             _mapTracker?.OnMapClick(p, msg =>
             {
-                Dispatcher.Invoke(() =>
+                Dispatcher.UIThread.Post(() =>
                 {
                     if (DataContext is MainViewModel vm)
                         vm.AppendRecvText(msg);
@@ -49,7 +52,7 @@ namespace UpperApp
             }
         }
 
-        private void MapCanvas_MouseMove(object sender, MouseEventArgs e)
+        private void MapCanvas_PointerMoved(object sender, PointerEventArgs e)
         {
             var p = e.GetPosition(MapCanvas);
             _mapTracker?.OnMouseMove(p);
@@ -59,9 +62,9 @@ namespace UpperApp
 
         private void MapCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            if (MapBorder.ActualWidth > 0)
+            if (MapBorder.Bounds.Width > 0)
             {
-                var desiredHeight = MapBorder.ActualWidth * 9.0 / 16.0;
+                var desiredHeight = MapBorder.Bounds.Width * 9.0 / 16.0;
                 MapBorder.Height = desiredHeight;
             }
         }

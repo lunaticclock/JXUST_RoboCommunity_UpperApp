@@ -71,6 +71,39 @@ namespace UpperApp.Communication
             }
         }
 
+        // ===== 发送骨架 =====
+        // 子类只负责"往通道写字节"，成功上报与异常分流由这两个工具方法统一处理。
+
+        /// <summary>空负载校验：为空时上报告警并返回 false，调用方应立即返回。</summary>
+        protected bool HasPayload(byte[] data)
+        {
+            if (data != null && data.Length > 0) return true;
+            NotifyMessageSendAlert("未发出信息!");
+            return false;
+        }
+
+        /// <summary>
+        /// 发送骨架：执行写入并统一上报成功；写入抛出异常时交给 onError 处理。
+        /// </summary>
+        /// <param name="payload">实际写入通道的字节。</param>
+        /// <param name="display">上报日志用的展示文本（原文或十六进制）。</param>
+        /// <param name="target">目标标识。</param>
+        /// <param name="write">通道写入动作。</param>
+        /// <param name="onError">写入失败时的异常处理。</param>
+        protected void WriteAndReport(byte[] payload, string display, string target,
+            Action<byte[]> write, Action<Exception> onError)
+        {
+            try
+            {
+                write(payload);
+                NotifyMessageSent(display, payload.Length, target);
+            }
+            catch (Exception ex)
+            {
+                onError(ex);
+            }
+        }
+
         // ===== 状态上报工厂方法 =====
         // 子类调用这些方法代替手动构造 StatusEvent，Channel 自动注入，状态变化封装在内部。
 

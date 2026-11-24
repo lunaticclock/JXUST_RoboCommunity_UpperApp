@@ -93,84 +93,58 @@ namespace UpperApp.Communication
 
         public override void Send(string data, string target = null)
         {
-            if (_udpSession == null)
-            {
-                NotifyMessageSendError("UDP未启动");
-                return;
-            }
-
-            if (string.IsNullOrEmpty(target))
-            {
-                NotifyMessageSendError("UDP 发送需要指定目标 IP:Port");
-                return;
-            }
-
+            if (!EnsureStarted() || !EnsureTarget(target)) return;
             if (!TryParseEndPoint(target, out IPEndPoint endPoint, out string error))
             {
                 NotifyMessageSendError(error);
                 return;
             }
 
-            byte[] sendBytes = Utils.TextEncoding.GetBytes(data);
-            if (sendBytes.Length == 0)
-            {
-                NotifyMessageSendAlert("未发出信息!");
-                return;
-            }
+            byte[] payload = Utils.TextEncoding.GetBytes(data);
+            if (!HasPayload(payload)) return;
 
-            try
-            {
-                _udpSession.SendAsync(endPoint, sendBytes.AsMemory()).GetAwaiter().GetResult();
-                NotifyMessageSent(data, sendBytes.Length, target);
-            }
-            catch (Exception)
-            {
-                lock (_lock)
-                {
-                    _peerList.Remove(target);
-                }
-                NotifyPeerDisconnected("远端关闭", target);
-            }
+            Transmit(endPoint, payload, data, target);
         }
 
         public override void Send(byte[] data, string target = null)
         {
-            if (_udpSession == null)
-            {
-                NotifyMessageSendError("UDP未启动");
-                return;
-            }
-            if (data == null || data.Length == 0)
-            {
-                NotifyMessageSendAlert("未发出信息!");
-                return;
-            }
-            if (string.IsNullOrEmpty(target))
-            {
-                NotifyMessageSendError("UDP 发送需要指定目标 IP:Port");
-                return;
-            }
-
+            if (!EnsureStarted()) return;
+            if (!HasPayload(data)) return;
+            if (!EnsureTarget(target)) return;
             if (!TryParseEndPoint(target, out IPEndPoint endPoint, out string error))
             {
                 NotifyMessageSendError(error);
                 return;
             }
 
-            try
-            {
-                _udpSession.SendAsync(endPoint, data.AsMemory()).GetAwaiter().GetResult();
-                NotifyMessageSent(Utils.BytesToHexString(data), data.Length, target);
-            }
-            catch (Exception)
-            {
-                lock (_lock)
-                {
-                    _peerList.Remove(target);
-                }
-                NotifyPeerDisconnected("远端关闭", target);
-            }
+            Transmit(endPoint, data, Utils.BytesToHexString(data), target);
         }
+
+        private bool EnsureStarted()
+        {
+            if (_udpSession != null) return true;
+            NotifyMessageSendError("UDP未启动");
+            return false;
+        }
+
+        private bool EnsureTarget(string target)
+        {
+            if (!string.IsNullOrEmpty(target)) return true;
+            NotifyMessageSendError("UDP 发送需要指定目标 IP:Port");
+            return false;
+        }
+
+        private void Transmit(IPEndPoint endPoint, byte[] payload, string display, string target)
+            => WriteAndReport(payload, display, target,
+                p => _udpSession.SendAsync(endPoint, p.AsMemory()).GetAwaiter().GetResult(),
+                _ =>
+                {
+                    lock (_lock)
+                    {
+                        _peerList.Remove(target);
+                    }
+                    NotifyPeerDisconnected("远端关闭", target);
+                });
 
         /// <summary>
         /// 解析 "IP:Port" 形式的发送目标，失败时返回对应的错误提示。

@@ -157,51 +157,35 @@ namespace UpperApp.Communication
 
         public override void Send(string data, string target = null)
         {
-            BluetoothClient client = target == null ? _manualClient : GetSlaveClient(target);
-            if (client == null || !client.Connected)
-            {
-                NotifyPeerDisconnected("连接断开");
-                return;
-            }
-
-            try
-            {
-                byte[] buffer = Encoding.UTF8.GetBytes(data);
-                client.GetStream().Write(buffer, 0, buffer.Length);
-                client.GetStream().Flush();
-                NotifyMessageSent(data, buffer.Length, target ?? "");
-            }
-            catch (Exception ex)
-            {
-                NotifyException(ex.Message);
-            }
+            var client = ResolveClient(target);
+            if (client == null) return;
+            Transmit(client, Encoding.UTF8.GetBytes(data), data, target);
         }
 
         public override void Send(byte[] data, string target = null)
         {
-            BluetoothClient client = target == null ? _manualClient : GetSlaveClient(target);
-            if (client == null || !client.Connected)
-            {
-                NotifyPeerDisconnected("连接断开");
-                return;
-            }
-            if (data == null || data.Length == 0)
-            {
-                NotifyMessageSendAlert("未发出信息!");
-                return;
-            }
-
-            try
-            {
-                client.GetStream().Write(data, 0, data.Length);
-                client.GetStream().Flush();
-                NotifyMessageSent(Utils.BytesToHexString(data), data.Length, target ?? "");
-            }
-            catch (Exception ex)
-            {
-                NotifyException(ex.Message);
-            }
+            var client = ResolveClient(target);
+            if (client == null) return;
+            if (!HasPayload(data)) return;
+            Transmit(client, data, Utils.BytesToHexString(data), target);
         }
+
+        private BluetoothClient ResolveClient(string target)
+        {
+            BluetoothClient client = target == null ? _manualClient : GetSlaveClient(target);
+            if (client != null && client.Connected) return client;
+            NotifyPeerDisconnected("连接断开");
+            return null;
+        }
+
+        private void Transmit(BluetoothClient client, byte[] payload, string display, string target)
+            => WriteAndReport(payload, display, target ?? "",
+                p =>
+                {
+                    client.GetStream().Write(p, 0, p.Length);
+                    client.GetStream().Flush();
+                },
+                ex => NotifyException(ex.Message));
 
         public async Task SetMasterAsync(string bluetoothDeviceName, CancellationToken token)
         {

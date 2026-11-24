@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Net.WebSockets;
 using System.Runtime.Versioning;
@@ -21,9 +20,32 @@ namespace UpperApp.Communication
         private bool _isClientMode;
         private string _clientTarget;
         private CancellationTokenSource _cts;
-        private bool _isMonitoring;
 
         public override ChannelType Channel => ChannelType.WebSocket;
+
+        protected override string StoppedMessage => "WebSocket 已停止";
+
+        protected override void StopCore()
+        {
+            _cts?.Cancel();
+            _cts?.Dispose();
+            _cts = null;
+
+            try { _listener?.Stop(); } catch { }
+            _listener = null;
+
+            foreach (string key in _serverClients.Keys)
+            {
+                try { _serverClients.Remove(key)?.Dispose(); } catch { }
+            }
+
+            if (_clientSocket != null && (_clientSocket.State == WebSocketState.Open || _clientSocket.State == WebSocketState.Connecting))
+            {
+                try { _clientSocket.Abort(); } catch { }
+            }
+            try { _clientSocket?.Dispose(); } catch { }
+            _clientSocket = null;
+        }
 
         public override void Start(CommunicationParams parameters)
         {
@@ -54,7 +76,6 @@ namespace UpperApp.Communication
             _listener.Start();
             _ = AcceptLoopAsync(_cts.Token);
             NotifyMonitorStarted($"WebSocket 监听 {url}");
-            _isMonitoring = true;
         }
 
         private async Task ConnectAsync(string serverUrl)
@@ -67,7 +88,6 @@ namespace UpperApp.Communication
                 _clientTarget = serverUrl;
                 _ = ReceiveLoopAsync(_clientSocket, "Server", _cts.Token);
                 NotifyMonitorStarted($"WebSocket 客户端已连接 {serverUrl}");
-                _isMonitoring = true;
             }
             catch (Exception ex)
             {
@@ -106,7 +126,7 @@ namespace UpperApp.Communication
             }
             finally
             {
-                _isMonitoring = false;
+                IsMonitoring = false;
             }
         }
 
@@ -140,36 +160,6 @@ namespace UpperApp.Communication
                 if (!IsStopping)
                     NotifyPeerDisconnected("WebSocket 断开", clientId);
             }
-        }
-
-        public override void Stop()
-        {
-            if (IsStopping) return;
-            if (!_isMonitoring && State == DeviceState.Disconnected) return;
-
-            BeginStop();
-            _isMonitoring = false;
-            _cts?.Cancel();
-            _cts?.Dispose();
-            _cts = null;
-
-            try { _listener?.Stop(); } catch { }
-            _listener = null;
-
-            foreach (string key in _serverClients.connectionKeys.ToArray())
-            {
-                try { _serverClients.Remove(key)?.Dispose(); } catch { }
-            }
-
-            if (_clientSocket != null && (_clientSocket.State == WebSocketState.Open || _clientSocket.State == WebSocketState.Connecting))
-            {
-                try { _clientSocket.Abort(); } catch { }
-            }
-            try { _clientSocket?.Dispose(); } catch { }
-            _clientSocket = null;
-
-            NotifyMonitorStopped("WebSocket 已停止");
-            EndStop();
         }
 
         public override void Send(string data, string target = null)
@@ -276,7 +266,7 @@ namespace UpperApp.Communication
         public override IReadOnlyList<string> GetPeerList()
         {
             if (_isClientMode) return [];
-            return _serverClients.connectionKeys;
+            return _serverClients.Keys;
         }
     }
 }

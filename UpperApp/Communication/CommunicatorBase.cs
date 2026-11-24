@@ -31,13 +31,45 @@ namespace UpperApp.Communication
         /// </summary>
         protected bool IsStopping { get; private set; }
 
+        /// <summary>
+        /// 是否处于监听/连接状态。由 NotifyMonitorStarted 置位，Stop 时清零；
+        /// 子类可在后台循环结束时手动置 false。
+        /// </summary>
+        protected bool IsMonitoring { get; set; }
+
         public event Action<StatusEvent> StatusChanged;
 
         public abstract void Start(CommunicationParams parameters);
-        public abstract void Stop();
         public abstract void Send(string data, string target = null);
         public abstract void Send(byte[] data, string target = null);
         public abstract IReadOnlyList<string> GetPeerList();
+
+        /// <summary>停止时上报的提示文本。</summary>
+        protected abstract string StoppedMessage { get; }
+
+        /// <summary>子类在此释放各自的资源，无需关心状态与事件上报。</summary>
+        protected abstract void StopCore();
+
+        /// <summary>
+        /// 停止模板：去重判断 → 进入停止态 → 释放资源 → 上报停止 → 结束停止态。
+        /// </summary>
+        public void Stop()
+        {
+            if (IsStopping) return;
+            if (!IsMonitoring && State == DeviceState.Disconnected) return;
+
+            BeginStop();
+            IsMonitoring = false;
+            try
+            {
+                StopCore();
+            }
+            finally
+            {
+                NotifyMonitorStopped(StoppedMessage);
+                EndStop();
+            }
+        }
 
         // ===== 状态上报工厂方法 =====
         // 子类调用这些方法代替手动构造 StatusEvent，Channel 自动注入，状态变化封装在内部。
@@ -66,10 +98,11 @@ namespace UpperApp.Communication
         protected void NotifyPeerDisconnected(string reason, string peer = "")
             => Raise(new PeerDisconnectedEvent(Channel, reason, peer));
 
-        /// <summary>上报监听/连接已启动，同时将 State 置为 Connected。</summary>
+        /// <summary>上报监听/连接已启动，同时将 State 置为 Connected、IsMonitoring 置为 true。</summary>
         protected void NotifyMonitorStarted(string message)
         {
             State = DeviceState.Connected;
+            IsMonitoring = true;
             Raise(new MonitorStartedEvent(Channel, message));
         }
 

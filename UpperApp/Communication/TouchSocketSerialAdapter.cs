@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO.Ports;
-using System.Text;
 using System.Threading;
 using TouchSocket.Core;
 using TouchSocket.SerialPorts;
@@ -13,14 +12,10 @@ namespace UpperApp.Communication
     internal class TouchSocketSerialAdapter : CommunicatorBase
     {
         private SerialPortClient _serialClient;
-        private readonly Encoding _encoding = Encoding.GetEncoding("GB2312");
 
         public override ChannelType Channel => ChannelType.Serial;
 
-        static TouchSocketSerialAdapter()
-        {
-            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        }
+        protected override string StoppedMessage => "串口已停止";
 
         public override void Start(CommunicationParams parameters)
         {
@@ -34,7 +29,7 @@ namespace UpperApp.Communication
 
             _serialClient.Received = (client, e) =>
             {
-                var receivedData = e.Memory.Span.ToString(_encoding);
+                var receivedData = e.Memory.Span.ToString(Utils.TextEncoding);
                 NotifyMessageReceived(receivedData, e.Memory.Length, "COM");
                 return EasyTask.CompletedTask;
             };
@@ -70,19 +65,11 @@ namespace UpperApp.Communication
             }
         }
 
-        public override void Stop()
+        protected override void StopCore()
         {
-            if (IsStopping) return;
-            if (_serialClient == null && State == DeviceState.Disconnected) return;
-
-            BeginStop();
-
             _serialClient?.CloseAsync("").GetAwaiter().GetResult();
             _serialClient?.SafeDispose();
             _serialClient = null;
-
-            NotifyMonitorStopped("串口已停止");
-            EndStop();
         }
 
         public override void Send(string data, string target = null)
@@ -93,7 +80,7 @@ namespace UpperApp.Communication
                 return;
             }
 
-            byte[] buffer = _encoding.GetBytes(data);
+            byte[] buffer = Utils.TextEncoding.GetBytes(data);
             try
             {
                 _serialClient.SendAsync(buffer.AsMemory()).GetAwaiter().GetResult();

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
-using System.Text;
 using System.Threading;
 using TouchSocket.Core;
 using TouchSocket.Sockets;
@@ -16,14 +15,10 @@ namespace UpperApp.Communication
         private readonly HashSet<string> _peerList = [];
         private readonly Lock _lock = new();
         private string _lastRemoteEndPoint = "";
-        private readonly Encoding _encoding = Encoding.GetEncoding("GB2312");
 
         public override ChannelType Channel => ChannelType.UDP;
 
-        static TouchSocketUdpAdapter()
-        {
-            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        }
+        protected override string StoppedMessage => "UDP 已停止";
 
         public override void Start(CommunicationParams parameters)
         {
@@ -45,7 +40,7 @@ namespace UpperApp.Communication
             _udpSession.Received = (session, e) =>
             {
                 var remoteEndPoint = e.EndPoint.ToString();
-                var message = e.Memory.Span.ToString(_encoding) + "\r\n";
+                var message = e.Memory.Span.ToString(Utils.TextEncoding) + "\r\n";
                 int byteCount = e.Memory.Length;
 
                 lock (_lock)
@@ -83,13 +78,8 @@ namespace UpperApp.Communication
             }
         }
 
-        public override void Stop()
+        protected override void StopCore()
         {
-            if (IsStopping) return;
-            if (_udpSession == null && State == DeviceState.Disconnected) return;
-
-            BeginStop();
-
             lock (_lock)
             {
                 _peerList.Clear();
@@ -99,9 +89,6 @@ namespace UpperApp.Communication
             _udpSession?.SafeDispose();
             _udpSession = null;
             _lastRemoteEndPoint = "";
-
-            NotifyMonitorStopped("UDP 已停止");
-            EndStop();
         }
 
         public override void Send(string data, string target = null)
@@ -118,19 +105,13 @@ namespace UpperApp.Communication
                 return;
             }
 
-            int colonIndex = target.LastIndexOf(':');
-            if (colonIndex <= 0 || !IPAddress.TryParse(target.AsSpan(0, colonIndex), out IPAddress remoteIP))
+            if (!TryParseEndPoint(target, out IPEndPoint endPoint, out string error))
             {
-                NotifyMessageSendError("远端IP错误!");
-                return;
-            }
-            if (!int.TryParse(target.AsSpan(colonIndex + 1), out int remotePort))
-            {
-                NotifyMessageSendError("远端端口错误!");
+                NotifyMessageSendError(error);
                 return;
             }
 
-            byte[] sendBytes = _encoding.GetBytes(data);
+            byte[] sendBytes = Utils.TextEncoding.GetBytes(data);
             if (sendBytes.Length == 0)
             {
                 NotifyMessageSendAlert("未发出信息!");
@@ -139,7 +120,6 @@ namespace UpperApp.Communication
 
             try
             {
-                var endPoint = new IPEndPoint(remoteIP, remotePort);
                 _udpSession.SendAsync(endPoint, sendBytes.AsMemory()).GetAwaiter().GetResult();
                 NotifyMessageSent(data, sendBytes.Length, target);
             }
@@ -171,21 +151,14 @@ namespace UpperApp.Communication
                 return;
             }
 
-            int colonIndex = target.LastIndexOf(':');
-            if (colonIndex <= 0 || !IPAddress.TryParse(target.AsSpan(0, colonIndex), out IPAddress remoteIP))
+            if (!TryParseEndPoint(target, out IPEndPoint endPoint, out string error))
             {
-                NotifyMessageSendError("远端IP错误!");
-                return;
-            }
-            if (!int.TryParse(target.AsSpan(colonIndex + 1), out int remotePort))
-            {
-                NotifyMessageSendError("远端端口错误!");
+                NotifyMessageSendError(error);
                 return;
             }
 
             try
             {
-                var endPoint = new IPEndPoint(remoteIP, remotePort);
                 _udpSession.SendAsync(endPoint, data.AsMemory()).GetAwaiter().GetResult();
                 NotifyMessageSent(Utils.BytesToHexString(data), data.Length, target);
             }
@@ -197,6 +170,30 @@ namespace UpperApp.Communication
                 }
                 NotifyPeerDisconnected("远端关闭", target);
             }
+        }
+
+        /// <summary>
+        /// 解析 "IP:Port" 形式的发送目标，失败时返回对应的错误提示。
+        /// </summary>
+        private static bool TryParseEndPoint(string target, out IPEndPoint endPoint, out string error)
+        {
+            endPoint = null;
+            error = null;
+
+            int colonIndex = target.LastIndexOf(':');
+            if (colonIndex <= 0 || !IPAddress.TryParse(target.AsSpan(0, colonIndex), out IPAddress remoteIP))
+            {
+                error = "远端IP错误!";
+                return false;
+            }
+            if (!int.TryParse(target.AsSpan(colonIndex + 1), out int remotePort))
+            {
+                error = "远端端口错误!";
+                return false;
+            }
+
+            endPoint = new IPEndPoint(remoteIP, remotePort);
+            return true;
         }
 
         public override IReadOnlyList<string> GetPeerList()

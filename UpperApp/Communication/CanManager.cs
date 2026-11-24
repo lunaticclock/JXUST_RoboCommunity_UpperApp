@@ -15,9 +15,22 @@ namespace UpperApp.Communication
         private PcanChannel _pcanChannel;
         private readonly BindingDic<string> _canDevices = new();
         private CancellationTokenSource _cts;
-        private bool _isMonitoring;
 
         public override ChannelType Channel => ChannelType.CAN;
+
+        protected override string StoppedMessage => "CAN 已停止";
+
+        protected override void StopCore()
+        {
+            _cts?.Cancel();
+            _cts?.Dispose();
+            _cts = null;
+
+            if (_pcanChannel != 0)
+            {
+                try { Api.Uninitialize(_pcanChannel); } catch { }
+            }
+        }
 
         public override void Start(CommunicationParams parameters)
         {
@@ -45,27 +58,6 @@ namespace UpperApp.Communication
 
             _ = ReceiveLoopAsync(_cts.Token);
             NotifyMonitorStarted($"CAN 通道 {canParams.ChannelName} 启动");
-            _isMonitoring = true;
-        }
-
-        public override void Stop()
-        {
-            if (IsStopping) return;
-            if (!_isMonitoring && State == DeviceState.Disconnected) return;
-
-            BeginStop();
-            _isMonitoring = false;
-            _cts?.Cancel();
-            _cts?.Dispose();
-            _cts = null;
-
-            if (_pcanChannel != 0)
-            {
-                try { Api.Uninitialize(_pcanChannel); } catch { }
-            }
-
-            NotifyMonitorStopped("CAN 已停止");
-            EndStop();
         }
 
         private async Task ReceiveLoopAsync(CancellationToken token)
@@ -102,7 +94,7 @@ namespace UpperApp.Communication
             }
             finally
             {
-                if (_isMonitoring && !IsStopping) Stop();
+                if (IsMonitoring && !IsStopping) Stop();
             }
         }
 
@@ -111,29 +103,28 @@ namespace UpperApp.Communication
             if (string.IsNullOrWhiteSpace(data))
                 return;
 
-            string[] parts = data.Split(':');
-            if (parts.Length != 2)
+            int colonIndex = data.IndexOf(':');
+            if (colonIndex < 0 || colonIndex != data.LastIndexOf(':'))
             {
                 NotifyMessageSendError("CAN 发送格式错误，应为 ID:数据");
                 return;
             }
 
-            if (!uint.TryParse(parts[0], System.Globalization.NumberStyles.HexNumber, null, out uint id))
+            string idText = data[..colonIndex];
+            if (!uint.TryParse(idText, System.Globalization.NumberStyles.HexNumber, null, out uint id))
             {
-                NotifyMessageSendError($"无效的 CAN ID: {parts[0]}");
+                NotifyMessageSendError($"无效的 CAN ID: {idText}");
                 return;
             }
 
-            string hexData = parts[1];
+            string hexData = data[(colonIndex + 1)..];
             if (hexData.Length % 2 != 0)
             {
                 NotifyMessageSendError("CAN 数据长度必须为偶数");
                 return;
             }
 
-            byte[] dataBytes = new byte[hexData.Length / 2];
-            for (int i = 0; i < dataBytes.Length; i++)
-                dataBytes[i] = Convert.ToByte(hexData.Substring(i * 2, 2), 16);
+            byte[] dataBytes = Convert.FromHexString(hexData);
 
             var msg = new PcanMessage
             {
@@ -167,6 +158,6 @@ namespace UpperApp.Communication
             return errText;
         }
 
-        public override IReadOnlyList<string> GetPeerList() => _canDevices.connectionKeys;
+        public override IReadOnlyList<string> GetPeerList() => _canDevices.Keys;
     }
 }

@@ -9,7 +9,10 @@ namespace UpperApp.Core
 {
     public static class Utils
     {
-        private static readonly Encoding TextEncoding;
+        /// <summary>
+        /// GB2312 编码实例，供各通信适配器统一复用。
+        /// </summary>
+        public static readonly Encoding TextEncoding;
 
         static Utils()
         {
@@ -19,23 +22,10 @@ namespace UpperApp.Core
             TextEncoding = Encoding.GetEncoding("GB2312");
         }
 
-        public static string GetTime()
-        {
-            return "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff") + "]";
-        }
+        public static string GetTime() => $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss:fff}]";
 
         public static string StringToHexString(string str)
-        {
-            if (string.IsNullOrEmpty(str)) return string.Empty;
-            var sb = new StringBuilder();
-            byte[] bytes = TextEncoding.GetBytes(str);
-            for (int i = 0; i < bytes.Length; i++)
-            {
-                if (i > 0) sb.Append(' ');
-                sb.Append(bytes[i].ToString("X2"));
-            }
-            return sb.ToString();
-        }
+            => string.IsNullOrEmpty(str) ? string.Empty : BytesToHexString(TextEncoding.GetBytes(str));
 
         public static string HexStringToString(string hexString)
         {

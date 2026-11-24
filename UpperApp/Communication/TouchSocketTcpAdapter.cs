@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
-using System.Text;
 using System.Threading;
 using TouchSocket.Core;
 using TouchSocket.Sockets;
@@ -15,14 +14,10 @@ namespace UpperApp.Communication
         private TcpService _service;
         private readonly Dictionary<string, ITcpSessionClient> _clients = [];
         private readonly Lock _lock = new();
-        private readonly Encoding _encoding = Encoding.GetEncoding("GB2312");
 
         public override ChannelType Channel => ChannelType.TCP;
 
-        static TouchSocketTcpAdapter()
-        {
-            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        }
+        protected override string StoppedMessage => "TCP 已停止";
 
         public override void Start(CommunicationParams parameters)
         {
@@ -67,7 +62,7 @@ namespace UpperApp.Communication
                 Received = (client, e) =>
                     {
                         var endPoint = client.GetIPPort();
-                        var receivedData = e.Memory.Span.ToString(_encoding);
+                        var receivedData = e.Memory.Span.ToString(Utils.TextEncoding);
                         NotifyMessageReceived(receivedData, e.Memory.Length, endPoint);
                         return EasyTask.CompletedTask;
                     }
@@ -90,13 +85,8 @@ namespace UpperApp.Communication
             }
         }
 
-        public override void Stop()
+        protected override void StopCore()
         {
-            if (IsStopping) return;
-            if (_service == null && State == DeviceState.Disconnected) return;
-
-            BeginStop();
-
             lock (_lock)
             {
                 _clients.Clear();
@@ -105,9 +95,6 @@ namespace UpperApp.Communication
             _service?.StopAsync().GetAwaiter().GetResult();
             _service?.SafeDispose();
             _service = null;
-
-            NotifyMonitorStopped("TCP 已停止");
-            EndStop();
         }
 
         public override void Send(string data, string target = null)
@@ -133,7 +120,7 @@ namespace UpperApp.Communication
 
             try
             {
-                var bytes = _encoding.GetBytes(data);
+                var bytes = Utils.TextEncoding.GetBytes(data);
                 client.SendAsync(bytes.AsMemory()).GetAwaiter().GetResult();
                 NotifyMessageSent(data, bytes.Length, target);
             }

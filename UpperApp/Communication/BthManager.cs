@@ -3,7 +3,6 @@ using InTheHand.Net.Sockets;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Net.Sockets;
 using System.Runtime.Versioning;
 using System.Text;
@@ -18,7 +17,6 @@ namespace UpperApp.Communication
     internal class BthManager : CommunicatorBase, IBluetoothCommunicator
     {
         private CancellationTokenSource _cts;
-        private bool _isMonitoring;
 
         public BluetoothRadio Br { get; private set; }
         private BluetoothListener _listener;
@@ -32,6 +30,24 @@ namespace UpperApp.Communication
         public string RadioMode => Br?.Mode.ToString() ?? "";
 
         public override ChannelType Channel => ChannelType.Bluetooth;
+
+        protected override string StoppedMessage => "蓝牙已停止";
+
+        protected override void StopCore()
+        {
+            _cts?.Cancel();
+            _cts?.Dispose();
+            _cts = null;
+
+            try { _listener?.Stop(); } catch { }
+            _listener = null;
+            foreach (string key in BthClients.Keys)
+            {
+                try { BthClients.Remove(key)?.Close(); } catch { }
+            }
+            try { _manualClient?.Dispose(); } catch { }
+            _manualClient = null;
+        }
 
         public BthManager()
         {
@@ -53,7 +69,6 @@ namespace UpperApp.Communication
                 _listener.Start();
                 _ = Task.Run(() => AcceptLoopAsync(_cts.Token));
                 NotifyMonitorStarted("蓝牙服务端监听已开始");
-                _isMonitoring = true;
             }
             else
             {
@@ -67,31 +82,6 @@ namespace UpperApp.Communication
                 var targetName = btParams.TargetDeviceName;
                 _ = Task.Run(() => SetMasterAsync(targetName, _cts.Token));
             }
-        }
-
-        public override void Stop()
-        {
-            // 防止重复调用：正在停止或已断开则直接返回
-            if (IsStopping) return;
-            if (!_isMonitoring && State == DeviceState.Disconnected) return;
-
-            BeginStop();
-            _isMonitoring = false;
-            _cts?.Cancel();
-            _cts?.Dispose();
-            _cts = null;
-
-            try { _listener?.Stop(); } catch { }
-            _listener = null;
-            foreach (string key in BthClients.connectionKeys.ToArray())
-            {
-                try { BthClients.Remove(key)?.Close(); } catch { }
-            }
-            try { _manualClient?.Dispose(); } catch { }
-            _manualClient = null;
-
-            NotifyMonitorStopped("蓝牙已停止");
-            EndStop();
         }
 
         private async Task AcceptLoopAsync(CancellationToken token)
@@ -120,7 +110,7 @@ namespace UpperApp.Communication
                 }
             }
             catch (OperationCanceledException) { }
-            catch (Exception) when (!_isMonitoring || token.IsCancellationRequested)
+            catch (Exception) when (!IsMonitoring || token.IsCancellationRequested)
             {
                 // Stop() 里关闭监听 socket 会中断阻塞的 Accept（WSACancelBlockingCall），属正常收尾
             }
@@ -130,7 +120,7 @@ namespace UpperApp.Communication
             }
             finally
             {
-                _isMonitoring = false;
+                IsMonitoring = false;
             }
         }
 
@@ -243,7 +233,6 @@ namespace UpperApp.Communication
 
             // 连接成功：更新状态并启动接收循环
             NotifyMonitorStarted($"已连接到 {bluetoothDeviceName}");
-            _isMonitoring = true;
             _ = ReceiveLoopAsync(_manualClient, token);
         }
 
@@ -261,7 +250,6 @@ namespace UpperApp.Communication
             }
             _manualClient.Connect(device.DeviceAddress, BluetoothService.SerialPort);
             NotifyMonitorStarted($"已连接到 {bluetoothDeviceName}");
-            _isMonitoring = true;
             _ = Task.Run(() => ReceiveLoopAsync(_manualClient, _cts.Token));
         }
 
@@ -280,7 +268,7 @@ namespace UpperApp.Communication
         public void ConnectToDevice(string deviceName)
         {
             var param = new BluetoothParams { IsServerMode = false, TargetDeviceName = deviceName };
-            if (_isMonitoring) Stop();
+            if (IsMonitoring) Stop();
             Start(param);
         }
 
@@ -298,6 +286,6 @@ namespace UpperApp.Communication
             });
         }
 
-        public override IReadOnlyList<string> GetPeerList() => BthClients.connectionKeys;
+        public override IReadOnlyList<string> GetPeerList() => BthClients.Keys;
     }
 }

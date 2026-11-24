@@ -117,7 +117,9 @@ namespace UpperApp.UI
             double chartW, double chartH, double yMax, int maxSamples)
         {
             var geo = new PathGeometry();
-            var fig = new PathFigure();
+            // Avalonia 的 PathFigure.IsClosed 默认为 true，必须显式关闭，
+            // 否则会多出一条把最新点连回起点的斜线。
+            var fig = new PathFigure { IsClosed = false };
             bool first = true;
             int idx = 0;
             foreach (var v in data)
